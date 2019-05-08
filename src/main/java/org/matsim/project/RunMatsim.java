@@ -75,7 +75,8 @@ import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorFactory;
  */
 public class RunMatsim{
 
-	static String INPUT_FOLDER = "c:/workAtHome/PassengerDelay";
+	//static String INPUT_FOLDER = "c:/workAtHome/PassengerDelay";
+	static String INPUT_FOLDER = "/work1/s103232/PassengerDelay";
 	static String date = "2014_09_01";
 	static ActivityFacilitiesFactoryImpl facFac = new ActivityFacilitiesFactoryImpl();
 	static NetworkRoute networkRoute;

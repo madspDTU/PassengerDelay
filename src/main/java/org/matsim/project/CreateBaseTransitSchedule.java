@@ -32,6 +32,8 @@ public class CreateBaseTransitSchedule {
 
 	static Link dummyLink;
 	static NetworkRoute networkRoute;
+	//static String INPUT_FOLDER = "c:/workAtHome/PassengerDelay";
+	static String INPUT_FOLDER = "/work1/s103232/PassengerDelay";
 
 	Coord fromCoord = new Coord(719991.463908,6174840.523082);	
 	Coord toCoord = new Coord(723728.644952,6180425.027057);
@@ -52,9 +54,9 @@ public class CreateBaseTransitSchedule {
 		scenario = addBaseSchedule(scenario);
 
 		TransitScheduleWriter writer = new TransitScheduleWriter(scenario.getTransitSchedule());
-		writer.writeFile("c:/workAtHome/PassengerDelay/BaseSchedules/BaseSchedule.xml.gz");
+		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule.xml.gz");
 		NetworkWriter networkWriter = new NetworkWriter(scenario.getNetwork());
-		networkWriter.write("c:/workAtHome/PassengerDelay/OtherInput/network.xml.gz");
+		networkWriter.write(INPUT_FOLDER + "/OtherInput/network.xml.gz");
 
 	}
 
@@ -66,7 +68,7 @@ public class CreateBaseTransitSchedule {
 
 	private static Scenario addBusSchedule(Scenario scenario) throws IOException {
 		TransitSchedule schedule = scenario.getTransitSchedule();
-		BufferedReader br = new BufferedReader(new FileReader("c:/workAtHome/PassengerDelay/BaseSchedules/BusSchedule.csv"));
+		BufferedReader br = new BufferedReader(new FileReader(INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv"));
 		String readLine = br.readLine();
 		TransitLine line = null;
 		List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
@@ -115,7 +117,7 @@ public class CreateBaseTransitSchedule {
 
 	private static Scenario addTrainSchedule(Scenario scenario) throws IOException {
 		TransitSchedule schedule = scenario.getTransitSchedule();
-		BufferedReader br = new BufferedReader(new FileReader("c:/workAtHome/PassengerDelay/BaseSchedules/TrainSchedule.csv"));
+		BufferedReader br = new BufferedReader(new FileReader(INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv"));
 		String readLine = br.readLine();
 		TransitLine line = null;
 		List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
@@ -180,8 +182,8 @@ public class CreateBaseTransitSchedule {
 
 		TransitSchedule schedule = scenario.getTransitSchedule();
 
-		for(String inputFile : new String[]{"c:/workAtHome/PassengerDelay/OtherInput/stations.csv",
-		"c:/workAtHome/PassengerDelay/OtherInput/busStops.csv"}){
+		for(String inputFile : new String[]{INPUT_FOLDER + "/OtherInput/stations.csv",
+				INPUT_FOLDER + "/OtherInput/busStops.csv"}){
 			BufferedReader br = new BufferedReader(new FileReader(inputFile));
 			String readLine = br.readLine();
 			while((readLine = br.readLine()) != null){
