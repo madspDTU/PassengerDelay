@@ -10,15 +10,16 @@
 	<description>MATSim example project</description>
 
 	<properties>
-	  <!-- release> -->
-		<matsim.version>11.0</matsim.version>
+		<!-- release> -->
+		<matsim.version>0.10.0</matsim.version>
 
-	  <!--weekly "release":-->
-	  <!--<matsim.version>0.11.0-2019w01-SNAPSHOT</matsim.version>-->
+		<!--weekly "release": -->
+		<!--<matsim.version>0.11.0-2019w01-SNAPSHOT</matsim.version> -->
 	</properties>
 
 	<repositories>
-	  <!--Note that in general repositories are not transitive, so they need to be repeated at every level where needed.-->
+		<!--Note that in general repositories are not transitive, so they need 
+			to be repeated at every level where needed. -->
 		<repository>
 			<!-- Geotools is not on Maven central -->
 			<id>osgeo</id>
@@ -30,11 +31,15 @@
 			<id>matsim</id>
 			<url>https://dl.bintray.com/matsim/matsim</url>
 		</repository>
- 		<repository>
+		<repository>
 			<!-- For MATSim snapshots: -->
 			<id>ojo-snapshots</id>
 			<url>http://oss.jfrog.org/libs-snapshot</url>
-		</repository>	
+		</repository>
+		<repository>
+			<id>jitpack.io</id>
+			<url>https://jitpack.io</url>
+		</repository>
 	</repositories>
 
 	<dependencies>
@@ -42,11 +47,11 @@
 			<!-- This is the matsim "core": -->
 			<groupId>org.matsim</groupId>
 			<artifactId>matsim</artifactId>
-			<version>${matsim.version}</version>
+			<version>0.10.0</version>
 		</dependency>
 
 		<dependency>
-			<!-- Include the JUnit testing library.  Not transitive. -->
+			<!-- Include the JUnit testing library. Not transitive. -->
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.12</version>
@@ -54,7 +59,7 @@
 		</dependency>
 
 		<dependency>
-			<!--MATSim test infrastructure.  Not transitive.-->
+			<!--MATSim test infrastructure. Not transitive. -->
 			<groupId>org.matsim</groupId>
 			<artifactId>matsim</artifactId>
 			<type>test-jar</type>
@@ -62,12 +67,19 @@
 			<scope>test</scope>
 		</dependency>
 
-		<!--to get ExamplesUtils. commented out since it is another dependency, but in general this is recommended. -->
-		<!--<dependency>-->
-		<!--	<groupId>org.matsim</groupId>-->
-		<!--	<artifactId>matsim-examples</artifactId>-->
-		<!--	<version>${matsim.version}</version>-->
-		<!--</dependency>-->
+		<dependency>
+			<groupId>com.github.SchweizerischeBundesbahnen</groupId>
+			<artifactId>matsim-sbb-extensions</artifactId>
+			<version>0.10.2</version>
+		</dependency>
+
+		<!--to get ExamplesUtils. commented out since it is another dependency, 
+			but in general this is recommended. -->
+		<!--<dependency> -->
+		<!-- <groupId>org.matsim</groupId> -->
+		<!-- <artifactId>matsim-examples</artifactId> -->
+		<!-- <version>${matsim.version}</version> -->
+		<!--</dependency> -->
 
 	</dependencies>
 
