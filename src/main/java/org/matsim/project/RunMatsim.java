@@ -93,7 +93,7 @@ public class RunMatsim{
 
 		if(args != null && args.length > 0){
 			INPUT_FOLDER = args[0];
-			String date = args[1];
+			date = args[1];
 		}
 
 
