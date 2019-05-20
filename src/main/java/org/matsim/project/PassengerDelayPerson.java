@@ -36,8 +36,7 @@ public class PassengerDelayPerson {
 	Facility destinationLocation;
 	Facility nextLocationOfInterest;
 	Facility currentLocation;
-	private HashMap<Id<Facility>, Facility> facilities = new HashMap<Id<Facility>, Facility>();
-
+	
 	private double currentClock;
 
 	enum Status 
@@ -96,14 +95,14 @@ public class PassengerDelayPerson {
 		Leg leg = trip.get(0);
 		Route route = leg.getRoute();
 		if(route instanceof ExperimentalTransitRoute){
-			nextLocationOfInterest = facilities.get(((ExperimentalTransitRoute) route).getAccessStopId());
+			nextLocationOfInterest = RunMatsim.facilities.get(((ExperimentalTransitRoute) route).getAccessStopId());
 		}
 		return trip;
 	}
 
 	private void stationFunction(double time, SwissRailRaptor router) {
 		nextLocationOfInterest =
-				facilities.get(((ExperimentalTransitRoute) currentRoute.get(0).getRoute()).getEgressStopId());
+				RunMatsim.facilities.get(((ExperimentalTransitRoute) currentRoute.get(0).getRoute()).getEgressStopId());
 		if( currentRoute.get(0).getDepartureTime() < time && currentRoute.get(0).getDepartureTime() >= currentClock){
 			this.status = Status.VEHICLE;
 			currentClock = currentRoute.get(0).getDepartureTime();
@@ -129,7 +128,7 @@ public class PassengerDelayPerson {
 					nextLocationOfInterest = destinationLocation;
 				} else {
 					// Next location is station
-					nextLocationOfInterest = facilities.get(((ExperimentalTransitRoute) currentRoute.get(1).getRoute()).getAccessStopId());
+					nextLocationOfInterest = RunMatsim.facilities.get(((ExperimentalTransitRoute) currentRoute.get(1).getRoute()).getAccessStopId());
 				}
 				walkFunction(time,router);
 			} else {

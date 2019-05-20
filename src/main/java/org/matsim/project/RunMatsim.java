@@ -91,6 +91,7 @@ public class RunMatsim {
 	static String date = "2014_09_01";
 	static ActivityFacilitiesFactoryImpl facFac = new ActivityFacilitiesFactoryImpl();
 	static NetworkRoute networkRoute;
+	static HashMap<Id<TransitStopFacility>, TransitStopFacility> facilities;
 
 	@SuppressWarnings("static-access")
 	public static void main(String[] args) throws IOException {
@@ -115,7 +116,7 @@ public class RunMatsim {
 		//config.transit().setTransitScheduleFile("/zhome/81/e/64390/git/matsim-example-project/input/full/schedule_CPH.xml.gz");
 
 
-
+	
 		//Implement the events based PT router instead - it uses less transfer links.
 
 		config.transitRouter().setMaxBeelineWalkConnectionDistance(467.7);
@@ -169,7 +170,12 @@ public class RunMatsim {
 
 
 
+		for(TransitStopFacility stopFacility : scenario.getTransitSchedule().getFacilities().values()){
+			facilities.put(stopFacility.getId(), stopFacility);
+		}
 
+		
+		
 
 		networkRoute = (NetworkRoute) new LinkNetworkRouteFactory().createRoute(
 				Id.create("DummyLink",Link.class), Id.create("DummyLink",Link.class));
