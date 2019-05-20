@@ -374,7 +374,7 @@ public class RunMatsim {
 			fac = new SwissRailRaptorFactory(scenario.getTransitSchedule(), config, scenario.getNetwork(), arg3, arg4, 
 					null, config.plans(), scenario.getPopulation(), arg7);
 			raptor = fac.get();
-
+ 
 			for(PassengerDelayPerson person : passengerDelayPersons){
 				person.advance(stopwatch, raptor);
 			}
