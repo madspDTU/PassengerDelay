@@ -1,12 +1,14 @@
 package org.matsim.project;
 
 import java.util.LinkedList;
+import java.util.List;
 
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.population.Leg;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Plan;
+import org.matsim.pt.router.FakeFacility;
 
 import ch.sbb.matsim.routing.pt.raptor.LeastCostRaptorRouteSelector;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
@@ -14,7 +16,7 @@ import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
 public class PassengerDelayPerson {
 
 
-	LinkedList<Leg> legsToDo;
+	List<Leg> legsToDo;
 	Id<Person> id;
 	Plan plan;
 	private Status status;
@@ -79,10 +81,11 @@ public class PassengerDelayPerson {
 		return 0;
 	}
 
-	private void calculateShortestPath(double time, SwissRailRaptor raptor) {
+	private void calculateShortestPath( Coord fromCoord, Coord toCoord, double time, SwissRailRaptor raptor) {
 		
-		ActivityFacility fromFacility = new Fa 
-		raptor.calcRoute(fromFacility, toFacility, time, null);
+		FakeFacility fromFacility = new FakeFacility(fromCoord);
+		FakeFacility toFacility = new FakeFacility(toCoord);
+		legsToDo = raptor.calcRoute(fromFacility, toFacility, time, null);
 
 	}
 
