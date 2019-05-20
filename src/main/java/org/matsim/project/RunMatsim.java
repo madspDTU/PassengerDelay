@@ -145,9 +145,27 @@ public class RunMatsim {
 		plan.addActivity(scenario.getPopulation().getFactory().createActivityFromCoord("w", toCoord));
 		person.addPlan(plan);
 		scenario.getPopulation().addPerson(person);*/
-		
+
 		PopulationReader populationReader = new PopulationReader(scenario);
 		populationReader.readFile("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH.xml.gz");
+
+
+		RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
+		RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
+		PlansConfigGroup arg5 = config.plans();
+		Map<String, javax.inject.Provider<RoutingModule>> arg7 = new HashMap<String, javax.inject.Provider<RoutingModule>>();
+
+		SwissRailRaptorFactory fac = new SwissRailRaptorFactory(scenario.getTransitSchedule(), config, scenario.getNetwork(), arg3, arg4, 
+				null, config.plans(), scenario.getPopulation(), arg7);
+		SwissRailRaptor raptor = fac.get();
+
+
+		PassengerDelayPerson[] passengerDelayPersons = new PassengerDelayPerson[scenario.getPopulation().getPersons().size()];
+		int i = 0;
+		for(Person person : scenario.getPopulation().getPersons().values()){
+			passengerDelayPersons[i] = new PassengerDelayPerson(person.getId(), person.getPlans().get(0), raptor);
+			i++;
+		}
 
 
 
@@ -169,7 +187,7 @@ public class RunMatsim {
 		for(int stopwatch = 3*3600; stopwatch < 27*3600; stopwatch += 300){
 			System.out.println(stopwatch);
 
-			
+
 			LinkedList<TransitLine> linesToRemove = new LinkedList<TransitLine>();
 			for(TransitLine transitLine : scenario.getTransitSchedule().getTransitLines().values()){
 				linesToRemove.add(transitLine);
@@ -177,17 +195,17 @@ public class RunMatsim {
 			for (TransitLine transitLine : linesToRemove){
 				scenario.getTransitSchedule().removeTransitLine(transitLine);
 			}	
-			
+
 			//Have to modify these two - they do not work without minor(/major) changes. Most likely due to changes in column names.
 			scenario = CreateBaseTransitSchedule.addTrainSchedule(scenario, 
 					INPUT_FOLDER + "/Disaggregate/Train/DisaggregateSchedule_" + date + "_" + stopwatch + ".csv");
 			scenario = CreateBaseTransitSchedule.addBusSchedule(scenario,
 					INPUT_FOLDER + "/Disaggregate/Bus/DisaggregateBusSchedule_" + date + "_" + stopwatch + ".csv");
-			
-			
-			
-			
-			
+
+
+
+
+
 			/*
 			{
 				BufferedReader br = new BufferedReader(new FileReader());
@@ -264,8 +282,8 @@ public class RunMatsim {
 					line.addRoute(route);
 				}
 			}
-			*/
-			
+			 */
+
 			// Standard MATSim
 			/*
 			TransitRouterImplFactory transitRouterFac = new TransitRouterImplFactory(scenario.getTransitSchedule(),
@@ -353,15 +371,14 @@ public class RunMatsim {
 
 			// RAPTOR
 
-			RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
-			RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
-			PlansConfigGroup arg5 = config.plans();
-			Map<String, javax.inject.Provider<RoutingModule>> arg7 = new HashMap<String, javax.inject.Provider<RoutingModule>>();
-			SwissRailRaptorFactory fac = new SwissRailRaptorFactory(scenario.getTransitSchedule(), config, scenario.getNetwork(), arg3, arg4, 
+			fac = new SwissRailRaptorFactory(scenario.getTransitSchedule(), config, scenario.getNetwork(), arg3, arg4, 
 					null, config.plans(), scenario.getPopulation(), arg7);
-			SwissRailRaptor raptor = fac.get();
-			raptor.
-		
+			raptor = fac.get();
+
+			for(PassengerDelayPerson person : passengerDelayPersons){
+				person.advance(stopwatch, raptor);
+			}
+
 
 
 
