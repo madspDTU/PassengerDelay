@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -61,37 +62,52 @@ public class CreateBaseTransitSchedule {
 	}
 
 	private static Scenario addBaseSchedule(Scenario scenario) throws IOException {
-		scenario = addTrainSchedule(scenario);
-			scenario = addBusSchedule(scenario);
+		scenario = addTrainSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv");
+		scenario = addBusSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv");
 		return scenario;
 	}
 
-	private static Scenario addBusSchedule(Scenario scenario) throws IOException {
+	static Scenario addBusSchedule(Scenario scenario, String fileName) throws IOException {
 		TransitSchedule schedule = scenario.getTransitSchedule();
-		BufferedReader br = new BufferedReader(new FileReader(INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv"));
+		BufferedReader br = new BufferedReader(new FileReader(fileName));
 		String readLine = br.readLine();
 		TransitLine line = null;
 		List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
 		Id<TransitRoute> routeId = null;
 		Id<TransitRoute> prevRouteId = Id.create(-1, TransitRoute.class);
 		double offset = -1;
+
+		HashMap<String,TransitRoute> routeMap = new HashMap<String,TransitRoute>();
+
 		while((readLine = br.readLine()) != null){
 			String[] splitLine = readLine.split(";");
-			Id<TransitLine> lineId = Id.create(splitLine[0], TransitLine.class);
+			Id<TransitLine> lineId = Id.create(splitLine[4], TransitLine.class);
 			routeId = Id.create(splitLine[0], TransitRoute.class);
 			double arr = Double.valueOf(splitLine[2]);
 			double dep = Double.valueOf(splitLine[3]);
 			TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[1], TransitStopFacility.class));
-			if(!schedule.getTransitLines().containsKey(lineId)){
+			if(routeId != prevRouteId){
 				if(!stops.isEmpty()){
-					TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "bus");	
-					route.addDeparture(schedule.getFactory().createDeparture(Id.create(String.valueOf(offset), Departure.class), offset));
-					line.addRoute(route);
+					TransitRoute route;
+					String routeString = createRouteString(line.getId(), stops);
+					if(!routeMap.containsKey(routeString)){
+						route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "bus");	
+						routeMap.put(routeString, route);
+						line.addRoute(route);
+					} else {
+						route = routeMap.get(routeString);
+					}
+					route.addDeparture(scenario.getTransitSchedule().getFactory().createDeparture(
+							Id.create(prevRouteId.toString(), Departure.class), offset));
 					stops.clear();
 				}
 				offset = arr;
-				line = schedule.getFactory().createTransitLine(lineId);
-				schedule.addTransitLine(line);
+				if(!schedule.getTransitLines().containsKey(lineId)){
+					line = schedule.getFactory().createTransitLine(lineId);
+					schedule.addTransitLine(line);
+				} else {
+					line = schedule.getTransitLines().get(lineId);
+				}
 			}
 			if(stopFacility != null){
 				if(arr < offset){
@@ -115,9 +131,19 @@ public class CreateBaseTransitSchedule {
 	}
 
 
-	private static Scenario addTrainSchedule(Scenario scenario) throws IOException {
+	private static String createRouteString(Id<TransitLine> lineId, List<TransitRouteStop> stops) {
+		String s = lineId.toString();
+		for(TransitRouteStop stop : stops){
+			s += "_" + stop.getStopFacility().getId().toString();
+			s += "_" + stop.getArrivalOffset();
+			s += "_" + stop.getDepartureOffset();
+		}
+		return s;
+	}
+
+	static Scenario addTrainSchedule(Scenario scenario, String fileName) throws IOException {
 		TransitSchedule schedule = scenario.getTransitSchedule();
-		BufferedReader br = new BufferedReader(new FileReader(INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv"));
+		BufferedReader br = new BufferedReader(new FileReader(fileName));
 		String readLine = br.readLine();
 		TransitLine line = null;
 		List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
