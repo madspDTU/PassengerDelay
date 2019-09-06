@@ -2,6 +2,8 @@ package org.matsim.project;
 
 import java.util.Arrays;
 import java.util.HashSet;
+
+import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.population.Activity;
@@ -16,10 +18,14 @@ import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.population.io.PopulationReader;
+import org.matsim.core.router.TripStructureUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.facilities.ActivityFacilities;
 
 public class ExtractPTPopulation {
+
+	final static int beginningOfDay = 3*3600;
+	static PopulationFactory pf;
 
 	public static void main(String[] args){
 
@@ -33,7 +39,7 @@ public class ExtractPTPopulation {
 		Config newConfig = ConfigUtils.createConfig();
 		Scenario newScenario = ScenarioUtils.createScenario(newConfig);
 		Population newPopulation = newScenario.getPopulation();
-		PopulationFactory pf = newPopulation.getFactory();
+		pf = newPopulation.getFactory();
 		PopulationWriter pw = new PopulationWriter(newPopulation);
 
 
@@ -45,6 +51,7 @@ public class ExtractPTPopulation {
 			int i = 0;
 			boolean[] keptElement = new boolean[plan.getPlanElements().size()];
 
+			boolean atLeastOneElement = false;
 			for(PlanElement pe : plan.getPlanElements()){
 				if(pe instanceof Leg){
 					Leg leg = (Leg) pe;
@@ -52,16 +59,19 @@ public class ExtractPTPopulation {
 						keptElement[i-1] = true;
 						keptElement[i] = true;
 						keptElement[i+1] = true;
+						atLeastOneElement = true;
 					} 
 				}
 				i++;
 			}
-			i = 0;
-			Plan newPlan = PopulationUtils.createPlan();
-			newPlan = addElementsToPlan(plan, keptElement, newPlan);
-		
-			addPlanToPersonAndPopulation(newPopulation, pf, person, newPlan);
+			if(atLeastOneElement){
+				Plan newPlan = PopulationUtils.createPlan();
+				newPlan = addElementsToPlan(plan, keptElement, newPlan);
+				addPlanToPersonAndPopulation(newPopulation, pf, person, newPlan);
+			}
 		}
+
+
 
 
 		pw.write("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH.xml.gz");
@@ -77,7 +87,7 @@ public class ExtractPTPopulation {
 
 	private static Person addPlanToPersonAndPopulation(Population newPopulation, PopulationFactory pf, Person person,
 			Plan newPlan) {
-		if(newPlan.getPlanElements().size() == 0){
+		if(newPlan.getPlanElements().size() <3 ){
 			//do nothing - the person has no valid trips, and thus not qualified for the new population.
 			return null;
 		} else {
@@ -93,21 +103,82 @@ public class ExtractPTPopulation {
 
 
 
-	private static Plan addElementsToPlan(Plan plan, boolean[] keptElement, Plan newPlan) {
+	private static Plan addElementsToPlan(Plan plan, boolean[] keptElement, Plan newPlan) {	
 		int i = 0;
+		int firstIndexAfterThree = plan.getPlanElements().size();
+		boolean firstIndexFound = false;
 		for(PlanElement pe : plan.getPlanElements()){
-			if(keptElement[i]){
+			if(keptElement[i] && pe instanceof Activity){
+				double endTime = ((Activity) pe).getEndTime();
+				if(!firstIndexFound && endTime >= beginningOfDay){ 
+					firstIndexFound = true;
+					firstIndexAfterThree = i;		
+				} 
+			}
+			i++;
+		}
+
+		i = 0;
+		Coord prevActivityCoord = null;
+		boolean firstActivityHasPassed = false;
+		for(PlanElement pe : plan.getPlanElements()){
+			if(keptElement[i] && i >= firstIndexAfterThree){
 				if(pe instanceof Leg){
 					Leg leg = (Leg) pe;
 					newPlan.addLeg(leg);
 				} else {
 					Activity activity = (Activity) pe;
-					newPlan.addActivity(activity);
+					if(newPlan.getPlanElements().size() > 0 &&
+							newPlan.getPlanElements().get(newPlan.getPlanElements().size()-1) instanceof Activity ){
+						newPlan.addLeg(pf.createLeg("Teleportation"));
+					}
+
+					if(activity.getCoord().equals(prevActivityCoord)){
+						newPlan.getPlanElements().remove(newPlan.getPlanElements().size()-1);
+					} else {
+						Activity newActivity =  pf.createActivityFromCoord(activity.getType(), activity.getCoord());
+						newActivity.setEndTime(activity.getEndTime());
+						if(i == plan.getPlanElements().size()-1 && firstIndexAfterThree > 0 &&
+								newActivity.getEndTime() > 24*3600){
+							newActivity.setEndTime(24*3600);
+							//Will be followed by a Teleportation leg in the following.
+						}
+						newPlan.addActivity(newActivity);
+					}
+					prevActivityCoord = activity.getCoord();
+				}
+			}
+			i++;
+		}
+		i = 0;
+		for(PlanElement pe : plan.getPlanElements()){
+			if(keptElement[i] && i<= firstIndexAfterThree && firstIndexAfterThree > 0){	
+				if(pe instanceof Leg){
+					Leg leg = (Leg) pe;
+					newPlan.addLeg(leg);
+				} else {
+					Activity activity = (Activity) pe;
+					if(newPlan.getPlanElements().size() > 0 &&
+							newPlan.getPlanElements().get(newPlan.getPlanElements().size()-1) instanceof Activity ){
+						newPlan.addLeg(pf.createLeg("Teleportation"));
+					}
+					if(activity.getCoord().equals(prevActivityCoord)){
+						newPlan.getPlanElements().remove(newPlan.getPlanElements().size()-1);		
+					} else {
+						Activity newActivity =  pf.createActivityFromCoord(activity.getType(), activity.getCoord());
+						newActivity.setEndTime(activity.getEndTime() + 24*3600);
+						newPlan.addActivity(newActivity);
+					}
+					prevActivityCoord = activity.getCoord();
 				}
 			}
 			i++;
 		}
 
+		//Setting all final activities to last until 3am the following day;
+		if(newPlan.getPlanElements().size()>0){
+			((Activity) newPlan.getPlanElements().get(newPlan.getPlanElements().size()-1)).setEndTime(27*3600);
+		}
 		return newPlan;
 	}
 }

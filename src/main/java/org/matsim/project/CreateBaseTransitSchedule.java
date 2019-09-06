@@ -39,7 +39,7 @@ public class CreateBaseTransitSchedule {
 	Coord fromCoord = new Coord(719991.463908,6174840.523082);	
 	Coord toCoord = new Coord(723728.644952,6180425.027057);
 
-	public static void main(String[] args) throws IOException{
+	public static void main(String[] args){
 		Config config = ConfigUtils.createConfig();
 		Scenario scenario = ScenarioUtils.createScenario(config);
 		Node dummyNode1 = scenario.getNetwork().getFactory().createNode(Id.create("DummyNode1",Node.class), new Coord(719991.463908,6174840.523082));
@@ -56,76 +56,98 @@ public class CreateBaseTransitSchedule {
 
 		TransitScheduleWriter writer = new TransitScheduleWriter(scenario.getTransitSchedule());
 		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule.xml.gz");
+		scenario = clearTransitSchedule(scenario);
+		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule_InfrastructureOnly.xml.gz");
+		
 		NetworkWriter networkWriter = new NetworkWriter(scenario.getNetwork());
 		networkWriter.write(INPUT_FOLDER + "/OtherInput/network.xml.gz");
 
 	}
 
-	private static Scenario addBaseSchedule(Scenario scenario) throws IOException {
+	public static Scenario clearTransitSchedule(Scenario scenario) {
+		LinkedList<TransitLine> linesToRemove = new LinkedList<TransitLine>();
+		for(TransitLine transitLine : scenario.getTransitSchedule().getTransitLines().values()){
+			linesToRemove.add(transitLine);
+		}
+		for (TransitLine transitLine : linesToRemove){
+			scenario.getTransitSchedule().removeTransitLine(transitLine);
+		}
+		return scenario;
+	}
+	
+	private static Scenario addBaseSchedule(Scenario scenario) {
 		scenario = addTrainSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv");
 		scenario = addBusSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv");
 		return scenario;
 	}
 
-	static Scenario addBusSchedule(Scenario scenario, String fileName) throws IOException {
+	static Scenario addBusSchedule(Scenario scenario, String fileName) {
 		TransitSchedule schedule = scenario.getTransitSchedule();
-		BufferedReader br = new BufferedReader(new FileReader(fileName));
-		String readLine = br.readLine();
-		TransitLine line = null;
-		List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
-		Id<TransitRoute> routeId = null;
-		Id<TransitRoute> prevRouteId = Id.create(-1, TransitRoute.class);
-		double offset = -1;
 
-		HashMap<String,TransitRoute> routeMap = new HashMap<String,TransitRoute>();
+		BufferedReader br;
+		try {
+			br = new BufferedReader(new FileReader(fileName));
+			String readLine = br.readLine();
+			TransitLine line = null;
+			List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
+			Id<TransitRoute> routeId = null;
+			Id<TransitRoute> prevRouteId = Id.create(-1, TransitRoute.class);
+			double offset = -1;
 
-		while((readLine = br.readLine()) != null){
-			String[] splitLine = readLine.split(";");
-			Id<TransitLine> lineId = Id.create(splitLine[4], TransitLine.class);
-			routeId = Id.create(splitLine[0], TransitRoute.class);
-			double arr = Double.valueOf(splitLine[2]);
-			double dep = Double.valueOf(splitLine[3]);
-			TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[1], TransitStopFacility.class));
-			if(routeId != prevRouteId){
-				if(!stops.isEmpty()){
-					TransitRoute route;
-					String routeString = createRouteString(line.getId(), stops);
-					if(!routeMap.containsKey(routeString)){
-						route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "bus");	
-						routeMap.put(routeString, route);
-						line.addRoute(route);
-					} else {
-						route = routeMap.get(routeString);
+			HashMap<String,TransitRoute> routeMap = new HashMap<String,TransitRoute>();
+
+			while((readLine = br.readLine()) != null){
+				String[] splitLine = readLine.split(";");
+				Id<TransitLine> lineId = Id.create(splitLine[4], TransitLine.class);
+				routeId = Id.create(splitLine[0], TransitRoute.class);
+				double arr = Double.valueOf(splitLine[2]);
+				double dep = Double.valueOf(splitLine[3]);
+				TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[1], TransitStopFacility.class));
+				if(routeId != prevRouteId){
+					if(!stops.isEmpty()){
+						TransitRoute route;
+						String routeString = createRouteString(line.getId(), stops);
+						if(!routeMap.containsKey(routeString)){
+							route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "bus");	
+							routeMap.put(routeString, route);
+							line.addRoute(route);
+						} else {
+							route = routeMap.get(routeString);
+						}
+						route.addDeparture(scenario.getTransitSchedule().getFactory().createDeparture(
+								Id.create(prevRouteId.toString(), Departure.class), offset));
+						stops.clear();
 					}
-					route.addDeparture(scenario.getTransitSchedule().getFactory().createDeparture(
-							Id.create(prevRouteId.toString(), Departure.class), offset));
-					stops.clear();
+					offset = arr;
+					if(!schedule.getTransitLines().containsKey(lineId)){
+						line = schedule.getFactory().createTransitLine(lineId);
+						schedule.addTransitLine(line);
+					} else {
+						line = schedule.getTransitLines().get(lineId);
+					}
 				}
-				offset = arr;
-				if(!schedule.getTransitLines().containsKey(lineId)){
-					line = schedule.getFactory().createTransitLine(lineId);
-					schedule.addTransitLine(line);
-				} else {
-					line = schedule.getTransitLines().get(lineId);
+				if(stopFacility != null){
+					if(arr < offset){
+						arr += 24*3600;
+					}
+					if(dep < offset){
+						dep += 24*3600;
+					}
+					TransitRouteStop stop = scenario.getTransitSchedule().getFactory().createTransitRouteStop(
+							stopFacility,arr-offset, dep-offset);
+					stops.add(stop);
 				}
+				prevRouteId = routeId;
 			}
-			if(stopFacility != null){
-				if(arr < offset){
-					arr += 24*3600;
-				}
-				if(dep < offset){
-					dep += 24*3600;
-				}
-				TransitRouteStop stop = scenario.getTransitSchedule().getFactory().createTransitRouteStop(
-						stopFacility,arr-offset, dep-offset);
-				stops.add(stop);
+			if(!stops.isEmpty()){
+				TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(routeId,networkRoute,stops, "bus");
+				// THIS MUST BE CHANGED!
+				route.addDeparture(schedule.getFactory().createDeparture(Id.create(prevRouteId.toString(), Departure.class), offset));
+				line.addRoute(route);
 			}
-			prevRouteId = routeId;
-		}
-		if(!stops.isEmpty()){
-			TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(routeId,networkRoute,stops, "bus");
-			route.addDeparture(schedule.getFactory().createDeparture(Id.create(String.valueOf(offset), Departure.class), offset));
-			line.addRoute(route);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 		return scenario;
 	}
@@ -141,86 +163,107 @@ public class CreateBaseTransitSchedule {
 		return s;
 	}
 
-	static Scenario addTrainSchedule(Scenario scenario, String fileName) throws IOException {
+	static Scenario addTrainSchedule(Scenario scenario, String fileName){
 		TransitSchedule schedule = scenario.getTransitSchedule();
-		BufferedReader br = new BufferedReader(new FileReader(fileName));
-		String readLine = br.readLine();
-		TransitLine line = null;
-		List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
-		Id<TransitRoute> prevRouteId = Id.create("-1", TransitRoute.class);
-		Id<TransitRoute> routeId = null;
-		double arrival = -1;
-		double departure = -1;
-		double offset = -1;
-		Id<TransitLine> prevLineId = null;
-		while((readLine = br.readLine()) != null){
-			String[] splitLine = readLine.split(";");
-			Id<TransitLine> lineId = Id.create(splitLine[0], TransitLine.class);
-			double time = Double.valueOf(splitLine[1]);
-			routeId = Id.create(splitLine[2], TransitRoute.class);
-			TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[3], TransitStopFacility.class));
-			String moveType = splitLine[4];
-			if(!schedule.getTransitLines().containsKey(lineId)){
-				line = schedule.getFactory().createTransitLine(lineId);
-				schedule.addTransitLine(line);
-			}
-			if(prevLineId != null){
-				line = schedule.getTransitLines().get(prevLineId);
-			}
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(fileName));
+			String readLine = br.readLine();
+			TransitLine line = null;
+			List<TransitRouteStop> stops = new LinkedList<TransitRouteStop>();
+			Id<TransitRoute> prevRouteId = Id.create("-1", TransitRoute.class);
+			Id<TransitRoute> routeId = null;
+			double arrival = -1;
+			double departure = -1;
+			double offset = -1;
+			Id<TransitLine> prevLineId = null;
+			while((readLine = br.readLine()) != null){
+				String[] splitLine = readLine.split(";");
+				Id<TransitLine> lineId = Id.create(splitLine[0], TransitLine.class);
+				double time = Double.valueOf(splitLine[1]);
+				routeId = Id.create(splitLine[2], TransitRoute.class);
+				TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[3], TransitStopFacility.class));
+				String moveType = splitLine[4];
+				if(!schedule.getTransitLines().containsKey(lineId)){
+					line = schedule.getFactory().createTransitLine(lineId);
+					schedule.addTransitLine(line);
+				}
+				if(prevLineId != null){
+					line = schedule.getTransitLines().get(prevLineId);
+				}
 
-			if(!prevRouteId.equals(routeId)){
-				if(!stops.isEmpty()){
-					TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "train");
-					route.addDeparture(schedule.getFactory().createDeparture(Id.create(String.valueOf(offset), Departure.class), offset));
-					line.addRoute(route);
-					stops.clear();
-				}
-				offset = time;
-			}
-			if(moveType.equals("I")){
-				arrival = time;
-				departure = arrival;
-			} else {
-				departure = time;
-				if(arrival == -1){
-					arrival = departure;
-				}
-				if(stopFacility != null){
-					if(arrival < offset){
-						arrival += 2400*3600;
+				if(!prevRouteId.equals(routeId)){
+					if(!stops.isEmpty()){
+						TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "train");
+						route.addDeparture(schedule.getFactory().createDeparture( 
+								Id.create(prevRouteId.toString(), Departure.class), offset));
+						line.addRoute(route);
+						stops.clear();
 					}
-					if(departure < offset){
-						departure += 2400*3600;
-					}
-					TransitRouteStop stop = scenario.getTransitSchedule().getFactory().createTransitRouteStop(
-							stopFacility,arrival-offset, departure-offset);
-					stops.add(stop);
+					offset = time;
 				}
-				arrival = -1;
+				if(moveType.equals("I")){
+					arrival = time;
+					departure = arrival;
+				} else {
+					departure = time;
+					if(arrival == -1){
+						arrival = departure;
+					}
+					if(stopFacility != null){
+						if(arrival < offset){
+							arrival += 2400*3600;
+						}
+						if(departure < offset){
+							departure += 2400*3600;
+						}
+						TransitRouteStop stop = scenario.getTransitSchedule().getFactory().createTransitRouteStop(
+								stopFacility,arrival-offset, departure-offset);
+						stops.add(stop);
+					}
+					arrival = -1;
+				}
+				prevLineId = lineId;
+				prevRouteId = routeId;
 			}
-			prevLineId = lineId;
-			prevRouteId = routeId;
+			
+			//adding the last departure of the train schedule...
+			if(!stops.isEmpty()){
+				TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "train");
+				route.addDeparture(schedule.getFactory().createDeparture( 
+						Id.create(prevRouteId.toString(), Departure.class), offset));
+				line.addRoute(route);
+				stops.clear();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 		return scenario;
 	}
 
-	public static Scenario createTransitInfrastructure(Scenario scenario) throws IOException{
+	public static Scenario createTransitInfrastructure(Scenario scenario){
 
 		TransitSchedule schedule = scenario.getTransitSchedule();
 
 		for(String inputFile : new String[]{INPUT_FOLDER + "/OtherInput/stations.csv",
 				INPUT_FOLDER + "/OtherInput/busStops.csv"}){
-			BufferedReader br = new BufferedReader(new FileReader(inputFile));
-			String readLine = br.readLine();
-			while((readLine = br.readLine()) != null){
-				String[] splitLine = readLine.split(";");
-				Id<TransitStopFacility> id = Id.create(splitLine[0], TransitStopFacility.class);
-				double x = Double.valueOf(splitLine[1]);
-				double y = Double.valueOf(splitLine[2]);
-				Coord coord = new Coord(x,y);
-				TransitStopFacility stop = schedule.getFactory().createTransitStopFacility(id, coord, false);
-				stop.setLinkId(dummyLink.getId());
-				schedule.addStopFacility(stop);
+			BufferedReader br;
+			try {
+				br = new BufferedReader(new FileReader(inputFile));
+
+				String readLine = br.readLine();
+				while((readLine = br.readLine()) != null){
+					String[] splitLine = readLine.split(";");
+					Id<TransitStopFacility> id = Id.create(splitLine[0], TransitStopFacility.class);
+					double x = Double.valueOf(splitLine[1]);
+					double y = Double.valueOf(splitLine[2]);
+					Coord coord = new Coord(x,y);
+					TransitStopFacility stop = schedule.getFactory().createTransitStopFacility(id, coord, false);
+					stop.setLinkId(dummyLink.getId());
+					schedule.addStopFacility(stop);
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
 		}
 		return scenario;
