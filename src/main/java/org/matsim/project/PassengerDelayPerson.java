@@ -223,7 +223,7 @@ public class PassengerDelayPerson {
 		if(trip.size() == 1){ //Walk directly to destination.
 			nextLOI = pathDestinationLocation;
 		} else {
-			Route route = trip.get(0).getRoute();			 // Get next proper pt-leg	
+			Route route = trip.get(1).getRoute();			 // Get next proper pt-leg	
 			nextLOI= RunMatsim.facilities.get(((ExperimentalTransitRoute) route).getAccessStopId());
 		}
 		return nextLOI;
