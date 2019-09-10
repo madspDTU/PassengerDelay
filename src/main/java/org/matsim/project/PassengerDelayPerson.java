@@ -44,16 +44,18 @@ public class PassengerDelayPerson {
 	private final double WALKING_SPEED = 1.0; //m/s. Assuming a speed of 1.3 and an additional length of 1.3.
 
 	SwissRailRaptor raptor;
-	List<Leg> currentRoute;
+	List<Leg> currentPath;
 	Id<Person> id;
 	Plan plan;
 	private Status status;
 	private double nextTimeOfInterest;
-	Facility destinationLocation;
+	Facility pathDestinationLocation;
 	Facility nextLocationOfInterest;
 	Facility currentLocation;
 
 	private double currentClock;
+	
+	private final double timeStep = 300.;
 
 	private int stopwatch;
 
@@ -76,8 +78,8 @@ public class PassengerDelayPerson {
 		this.status = Status.ACTIVITY;
 		this.currentLocation = new MyFakeFacility(((Activity) plan.getPlanElements().get(0)).getCoord());
 		this.nextTimeOfInterest = ((Activity) plan.getPlanElements().get(0)).getEndTime();
-		this.destinationLocation = new MyFakeFacility(((Activity) plan.getPlanElements().get(2)).getCoord());
-		this.currentRoute = null;
+		this.pathDestinationLocation = new MyFakeFacility(((Activity) plan.getPlanElements().get(2)).getCoord());
+		this.currentPath = null;
 		this.nextEgressTime = Double.MAX_VALUE;
 		this.stopwatch = 0;
 		this.events = new LinkedList<PassengerDelayEvent>();
@@ -100,7 +102,7 @@ public class PassengerDelayPerson {
 			stillInVehicleFunction();
 			break;
 		case WALK:
-			GenericRouteImpl route = (GenericRouteImpl) currentRoute.get(0).getRoute();
+			GenericRouteImpl route = (GenericRouteImpl) currentPath.get(0).getRoute();
 			if(route.getDistance()==0){
 				System.err.println("We need to advance in order to fix this stupid problem : (");
 			}
@@ -128,31 +130,37 @@ public class PassengerDelayPerson {
 		this.raptor = raptor;
 	}
 
+	/*
+	 * Function handling an agent currently at or entering an activity.
+	 */
 	private void activityFunction() {	
-		if(this.stopwatch  + 300 > this.nextTimeOfInterest){ 
-			this.plan.getPlanElements().remove(0); // Removed the activity
+		
+		// If the agent has to leave before next timestep
+		if(this.stopwatch  + timeStep > this.nextTimeOfInterest){ 
+			this.plan.getPlanElements().remove(0); // Remove the activity
 			this.currentClock = this.nextTimeOfInterest; // Time is now actEndTime;
 			String mode = ((Leg) this.plan.getPlanElements().get(0)).getMode();
-			if(mode.equals(TransportMode.pt)){
-				if(this.stopwatch  > timeForLastShortestPathSearch ){ // Time for antoher path search.
-					currentRoute = calculateShortestPath(currentLocation, destinationLocation, currentClock);
+			if(mode.equals(TransportMode.pt)){ // Next leg is a leg that we're interested in.
+				if(this.stopwatch  > timeForLastShortestPathSearch ){ // We haven't done a shortest path search in this timeStep.
+					currentPath = calculateShortestPath(currentLocation, pathDestinationLocation, currentClock);
 				}
 				if(RunMatsim.elaborateLogging){
 					System.out.println("### Activity -> Walk");
 				}
 				this.status = Status.WALK;
-				if(((GenericRouteImpl) this.currentRoute.get(0).getRoute()).getDistance() == 0){
+				if(((GenericRouteImpl) this.currentPath.get(0).getRoute()).getDistance() == 0){
 					System.err.println("This is acting weirdly");
 				}
 
 
 				events.add(new PassengerDelayEvent(PassengerDelayEvent.EventType.WALK_START, 
 						this.currentClock, this.currentLocation, this.nextLocationOfInterest, "WALK"));
+				
 				walkFunction();
 			} else if(mode.equals("Teleportation")){ //If teleportation: Skip the leg.
 				this.plan.getPlanElements().remove(0); 
 				Facility oldLocation = this.currentLocation;
-				this.currentLocation = this.destinationLocation;
+				this.currentLocation = this.pathDestinationLocation;
 				if(this.plan.getPlanElements().size()==1){
 					this.nextTimeOfInterest = Double.MAX_VALUE; // Finished
 				} else {
@@ -162,7 +170,7 @@ public class PassengerDelayPerson {
 						this.nextTimeOfInterest = actEndTime;
 					}
 					act = ((Activity) this.plan.getPlanElements().get(2));
-					this.destinationLocation = new MyFakeFacility(act.getCoord()); // Location of next activity
+					this.pathDestinationLocation = new MyFakeFacility(act.getCoord()); // Location of next activity
 				}	
 				if(RunMatsim.elaborateLogging){
 					System.out.println("### Activity -> Teleportation -> Activity");
@@ -175,10 +183,9 @@ public class PassengerDelayPerson {
 		} else { // Activity has not finished yet.
 			if(RunMatsim.elaborateLogging){
 				System.out.println("Waiting until " + nextTimeOfInterest + ". That is " +
-						(nextTimeOfInterest - this.stopwatch  - 300)/3600 + " more hours");
+						(nextTimeOfInterest - this.stopwatch  - timeStep)/3600 + " more hours");
 			}
 			currentClock = this.stopwatch ;
-
 		}
 	}
 
@@ -186,19 +193,19 @@ public class PassengerDelayPerson {
 
 		this.timeForLastShortestPathSearch = this.stopwatch ; // Updated latest path search clock;
 
-		List<Leg> trip = this.raptor.calcRoute(fromFacility, toFacility, time, null);		
-		Leg leg = trip.get(0);
+		List<Leg> path = this.raptor.calcRoute(fromFacility, toFacility, time, null);		
+		Leg leg = path.get(0);
 		Route route = leg.getRoute();
 		if(route instanceof GenericRouteImpl && ((GenericRouteImpl) route).getDistance() == 0){
 			// The route starts with a 0-distance walk-subleg which is removed.
-			if(trip.size() == 1){
+			if(path.size() == 1){
 				System.err.println("Shortest path is a null route " + this.status + " " + this.id);
 
 				System.exit(-1);
 			}
-			trip.remove(0);
+			path.remove(0);
 		}
-		leg=trip.get(0);
+		leg=path.get(0);
 		route=leg.getRoute();
 
 		if(route instanceof ExperimentalTransitRoute){
@@ -206,15 +213,15 @@ public class PassengerDelayPerson {
 			nextLocationOfInterest = RunMatsim.facilities.get(((ExperimentalTransitRoute) route).getAccessStopId());
 		} else if(route instanceof GenericRouteImpl){
 			// Walk to next stop/act instead of taking pt
-			this.nextLocationOfInterest = extractNextLocationOfInterest(trip);
+			this.nextLocationOfInterest = extractNextLocationOfInterest(path);
 		}
-		return trip;
+		return path;
 	}
 	
 	private Facility extractNextLocationOfInterest(List<Leg> trip){
 		Facility nextLOI;
 		if(trip.size() == 1){ //Walk directly to destination.
-			nextLOI = destinationLocation;
+			nextLOI = pathDestinationLocation;
 		} else {
 			Route route = trip.get(1).getRoute();			 // Get next proper pt-leg	
 			nextLOI= RunMatsim.facilities.get(((ExperimentalTransitRoute) route).getAccessStopId());
@@ -232,7 +239,7 @@ public class PassengerDelayPerson {
 			if(!RunMatsim.dep2Route.containsKey(this.currentDepartureId)){
 				System.err.println("This is Syria!" + id + " currentDepId: " + this.currentDepartureId + " @" + stopwatch);
 				System.exit(-1);
-				return currentRoute;
+				return currentPath;
 			}
 			// Can most likely be solved by increasing the buffer from 10 to 60 minutes...
 			// Or doing something smarter / more efficient.
@@ -248,7 +255,6 @@ public class PassengerDelayPerson {
 		Id<TransitRoute> routeId = RunMatsim.dep2Route.get(this.currentDepartureId);
 		double departureTime = RunMatsim.route2DepartureTime.get(routeId).get(this.currentDepartureId);
 		double auxTime =  this.currentClock - departureTime;
-		RunMatsim.route2OrderedStopOffset.get(routeId);
 		Entry<Double, TransitStopFacility> entry = RunMatsim.route2OrderedStopOffset.get(routeId).ceilingEntry(auxTime);
 		if(entry == null){
 			//Some kind of exception
@@ -260,25 +266,29 @@ public class PassengerDelayPerson {
 		}
 		Id<TransitStopFacility> stopId = ((TransitStopFacility) nextLocationOfInterest).getId();
 		double arrivalTime = departureTime + RunMatsim.route2StopArrival.get(routeId).get(stopId);
+		//madsp: Couldn't this just be arrivalTime? When is it ever necessary to use currentClock? Can you still be in vehicle when 
+			// currentClock has surpassed arrivalTime?
 		this.nextTimeOfInterest = Math.max(arrivalTime, this.currentClock); 
 
 
-		return calculateShortestPath(this.nextLocationOfInterest, this.destinationLocation,
+		return calculateShortestPath(this.nextLocationOfInterest, this.pathDestinationLocation,
 				this.nextTimeOfInterest);
 	}
 
 	private void stationFunction() {
 		if(this.stopwatch  > timeForLastShortestPathSearch){ // Time for a new path search
-			currentRoute = calculateShortestPath(this.currentLocation, this.destinationLocation, this.currentClock);
+			currentPath = calculateShortestPath(this.currentLocation, this.pathDestinationLocation, this.currentClock);
 		} // Otherwise, it has been done earlier on at this time step, and thus not necessary again.
 
-		Route route = currentRoute.get(0).getRoute();
-		if(route instanceof GenericRouteImpl && ((GenericRouteImpl) route).getDistance() == 0){
-			currentRoute.remove(0);
-			route = currentRoute.get(0).getRoute();
+		Route route = currentPath.get(0).getRoute();
+		if(route instanceof GenericRouteImpl && ((GenericRouteImpl) route).getDistance() == 0){ //Starts with a zero-walk.
+			currentPath.remove(0);
+			route = currentPath.get(0).getRoute();
 		}
+		
+		//Notice that this check is not redundant as route might have changed in the above part!
 		if(route instanceof GenericRouteImpl){
-			// It is faster to walk.
+			// It is suddenly faster to walk.
 			this.status = Status.WALK;
 			if(RunMatsim.elaborateLogging){
 				System.out.println("### Station -> Walk");
@@ -292,14 +302,14 @@ public class PassengerDelayPerson {
 			Id<TransitStopFacility> fromStopId = expRoute.getAccessStopId();
 			Id<TransitStopFacility> toStopId = expRoute.getEgressStopId();
 			nextLocationOfInterest = RunMatsim.facilities.get(toStopId);
-			Leg leg = this.currentRoute.get(0);
+			Leg leg = this.currentPath.get(0);
 			double expectedEgressTime = leg.getDepartureTime() + leg.getTravelTime();
 
 			Entry<Id<Departure>,Double> entry =
 					determineDepartureId(route, expectedEgressTime, fromStopId, toStopId);
 			double boardingTime = entry.getValue();
 
-			if( this.stopwatch  + 300 > boardingTime){ //Boarding happens before next timestep
+			if( this.stopwatch  + timeStep > boardingTime){ //Boarding happens before next timestep
 				this.status = Status.VEHICLE;
 				if(RunMatsim.elaborateLogging){
 					System.out.println("### Station -> Vehicle");
@@ -315,7 +325,7 @@ public class PassengerDelayPerson {
 				entersVehicleFunction();
 			} else {
 				//Wait until next time to see if a better opportunity arises.
-				this.currentClock = this.stopwatch  + 300;
+				this.currentClock = this.stopwatch  + timeStep;
 			}
 		} else {
 			System.err.println("This really shouldn't happen.. Last line of stationFunction");
@@ -367,7 +377,7 @@ public class PassengerDelayPerson {
 			System.err.println("toArrivalOffset: " + toArrivalOffset);
 			System.err.println("EgressTime: " + egressTime);
 			System.err.println("The departure we are looking for departs from " +
-					fromStopId + " at time >= " + this.currentRoute.get(0).getDepartureTime());
+					fromStopId + " at time >= " + this.currentPath.get(0).getDepartureTime());
 			System.err.println("And terminates at stop " + toStopId + " at time = " +  egressTime);
 			System.exit(-1);
 		}
@@ -378,18 +388,18 @@ public class PassengerDelayPerson {
 	}
 
 	private void entersVehicleFunction() {
-		if(this.stopwatch  + 300 > this.nextEgressTime){ // Have to get off before next time step
-			Leg leg = this.currentRoute.get(0);
-			Route route = this.currentRoute.get(0).getRoute();
+		if(this.stopwatch  + timeStep > this.nextEgressTime){ // Have to get off before next time step
+			Leg leg = this.currentPath.get(0);
+			Route route = this.currentPath.get(0).getRoute();
 			Id<TransitStopFacility> stopId = ((ExperimentalTransitRoute) route).getEgressStopId();
 			this.currentDepartureId = null;
 			this.currentClock = leg.getDepartureTime() + leg.getTravelTime();
 			this.currentLocation = RunMatsim.facilities.get(stopId);
-			this.currentRoute.remove(0);
-			route = this.currentRoute.get(0).getRoute();
+			this.currentPath.remove(0);
+			route = this.currentPath.get(0).getRoute();
 			if(route instanceof GenericRouteImpl && ((GenericRouteImpl) route).getDistance() == 0){
-				this.currentRoute.remove(0);
-				route = this.currentRoute.get(0).getRoute();
+				this.currentPath.remove(0);
+				route = this.currentPath.get(0).getRoute();
 			}
 
 			if(route instanceof GenericRouteImpl){
@@ -414,30 +424,36 @@ public class PassengerDelayPerson {
 				stationFunction();
 			}
 		} else { // Stay inside the same vehicle;	
-			this.currentClock = this.stopwatch  + 300;
+			this.currentClock = this.stopwatch  + timeStep;
 		}
 	}
 
 
 	private void stillInVehicleFunction() {
-		currentRoute = whereIsDepartureAtTime();
+		currentPath = whereIsDepartureAtTime();
+		//nextLocationOfInterest is now the next stop of the current departure.
+		
 		if(RunMatsim.elaborateLogging){
 			System.out.println(nextTimeOfInterest);
 		}
-		Route route = this.currentRoute.get(0).getRoute();
+		Route route = this.currentPath.get(0).getRoute();
 		if(route instanceof ExperimentalTransitRoute && 
 				isSameDeparture( ((ExperimentalTransitRoute) route).getRouteId() ) ){
-			Leg leg = this.currentRoute.get(0);
-			Id<TransitStopFacility> stopId = ((ExperimentalTransitRoute) route).getEgressStopId();
+			
+			ExperimentalTransitRoute expRoute =  (ExperimentalTransitRoute) route;
+			Id<TransitRoute> routeId = expRoute.getRouteId();
+			//If the shortest path is to stay on the current departure...
+			Leg leg = this.currentPath.get(0);
+			Id<TransitStopFacility> stopId = expRoute.getEgressStopId();
 			this.nextLocationOfInterest = RunMatsim.facilities.get(stopId);
-			this.nextEgressTime = leg.getDepartureTime() + leg.getDepartureTime();
+			this.nextEgressTime = leg.getDepartureTime() + RunMatsim.route2StopArrival.get(routeId).get(stopId);
 		} else { //It is a walking leg or a pt-leg with a different route, i.e. a walk or a transfer, i.e. get off!
 			this.nextEgressTime = this.nextTimeOfInterest;
 		}
 
 
-		if(this.stopwatch  + 300 > this.nextEgressTime){ // Have to get off before next time step
-			route = this.currentRoute.get(0).getRoute();
+		if(this.stopwatch  + timeStep > this.nextEgressTime){ // Have to get off before next time step
+			route = this.currentPath.get(0).getRoute();
 			this.currentDepartureId = null;
 			this.currentClock = this.nextEgressTime;
 			this.currentLocation = this.nextLocationOfInterest;
@@ -445,7 +461,7 @@ public class PassengerDelayPerson {
 				if(((GenericRouteImpl) route).getDistance() == 0){ // Plain transfer
 					System.err.println("Does this ever happen!?!?!?!?!?!?!? Might be impossible" +
 							".... and is equivalent to that in line 328, so if impossible it would be nice");
-					this.currentRoute.remove(0);
+					this.currentPath.remove(0);
 					this.status = Status.STATION;
 					this.nextLocationOfInterest = this.currentLocation;
 					if(RunMatsim.elaborateLogging){
@@ -458,7 +474,7 @@ public class PassengerDelayPerson {
 				} else {
 					// Proper walk
 					this.status = Status.WALK;
-					this.nextLocationOfInterest = extractNextLocationOfInterest(this.currentRoute);
+					this.nextLocationOfInterest = extractNextLocationOfInterest(this.currentPath);
 					if(RunMatsim.elaborateLogging){
 						System.out.println("### Vehicle -> Walk");
 					}
@@ -470,10 +486,10 @@ public class PassengerDelayPerson {
 			} else {
 				if(((ExperimentalTransitRoute)route).getEgressStopId().equals(
 						((TransitStopFacility) currentLocation).getId())){ // A planned egress station
-					this.currentRoute.remove(0);
-					route = this.currentRoute.get(0).getRoute();
+					this.currentPath.remove(0);
+					route = this.currentPath.get(0).getRoute();
 					if(route instanceof GenericRouteImpl && ((GenericRouteImpl) route).getDistance() == 0){
-						this.currentRoute.get(0).getRoute();
+						this.currentPath.get(0).getRoute();
 					}
 				} // If not, then this has already been done, as the currentRoute is searched from this particular stop.
 				this.status = Status.STATION;
@@ -485,7 +501,7 @@ public class PassengerDelayPerson {
 				stationFunction();
 			}
 		} else { // Stay inside the same vehicle;	
-			this.currentClock = this.stopwatch  + 300;
+			this.currentClock = this.stopwatch  + timeStep;
 		}
 	}
 
@@ -499,11 +515,11 @@ public class PassengerDelayPerson {
 
 	private void walkFunction() {
 		if(this.stopwatch  > timeForLastShortestPathSearch){ // TIme fo another path search;
-			currentRoute = calculateShortestPath(currentLocation, destinationLocation,currentClock);
+			currentPath = calculateShortestPath(currentLocation, pathDestinationLocation,currentClock);
 		}
 
 		double d = NetworkUtils.getEuclideanDistance(currentLocation.getCoord(), nextLocationOfInterest.getCoord());
-		double timeDuration = this.stopwatch  + 300 - currentClock;
+		double timeDuration = this.stopwatch  + timeStep - currentClock;
 		double rho = (d == 0) ? Double.POSITIVE_INFINITY : (timeDuration * WALKING_SPEED) / d;
 		if(RunMatsim.elaborateLogging){
 			System.out.println("Rho: " + rho);
@@ -515,15 +531,15 @@ public class PassengerDelayPerson {
 			double nextY = nextLocationOfInterest.getCoord().getY();
 			this.currentLocation = new MyFakeFacility(	new Coord(currentX + rho * (nextX - currentX), 
 					currentY + rho * (nextY - currentY)));
-			this.currentClock = this.stopwatch  + 300;
+			this.currentClock = this.stopwatch  + timeStep;
 		} else {
 			this.currentLocation = nextLocationOfInterest;
 			if(Double.isFinite(rho)){
 				this.currentClock += timeDuration / rho;
 			}
-			if(currentRoute.size()>1){
-				currentRoute.remove(0);
-				Route route = currentRoute.get(0).getRoute();
+			if(currentPath.size()>1){
+				currentPath.remove(0);
+				Route route = currentPath.get(0).getRoute();
 				if( route instanceof ExperimentalTransitRoute){
 					//Arrived at a station
 					this.status = Status.STATION;
@@ -549,7 +565,7 @@ public class PassengerDelayPerson {
 				}
 			} else { // Arrived at an activity
 				this.plan.getPlanElements().remove(0); // Remove leg from plan
-				this.currentLocation = this.destinationLocation; // Update location
+				this.currentLocation = this.pathDestinationLocation; // Update location
 				if(this.plan.getPlanElements().size()==1){ // Finished!
 					this.nextTimeOfInterest = Double.MAX_VALUE;
 				} else {
@@ -559,7 +575,7 @@ public class PassengerDelayPerson {
 						this.nextTimeOfInterest = this.currentClock;
 					}
 					act = ((Activity) this.plan.getPlanElements().get(2));          // Notice the 2
-					this.destinationLocation = new MyFakeFacility(act.getCoord());
+					this.pathDestinationLocation = new MyFakeFacility(act.getCoord());
 				}	
 				if(RunMatsim.elaborateLogging){
 					System.out.println("### Walk -> Activity");

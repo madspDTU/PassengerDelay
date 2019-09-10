@@ -3,19 +3,10 @@ package org.matsim.project;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-
-import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
-import org.matsim.api.core.v01.population.Population;
 import org.matsim.core.config.Config;
-import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.router.RoutingModule;
-import org.matsim.core.scenario.ScenarioUtils;
-import org.matsim.pt.transitSchedule.api.TransitLine;
-import org.matsim.pt.transitSchedule.api.TransitSchedule;
-
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorIntermodalAccessEgress;
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorParametersForPerson;
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorStopFinder;
@@ -28,7 +19,6 @@ import ch.sbb.matsim.routing.pt.raptor.RaptorStopFinder;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig.RaptorOptimization;
-import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
 
 public class AdvanceJob  implements Runnable {
 
@@ -61,18 +51,7 @@ public class AdvanceJob  implements Runnable {
 
 			RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(scenario.getPopulation(), iae, routingModuleMap);
 
-			RaptorStaticConfig staticConfig = new RaptorStaticConfig();
-			staticConfig.setBeelineWalkConnectionDistance(
-					config.transitRouter().getMaxBeelineWalkConnectionDistance());
-			staticConfig.setBeelineWalkDistanceFactor(
-					config.transitRouter().getDirectWalkFactor());
-			staticConfig.setBeelineWalkSpeed(
-					config.plansCalcRoute().getOrCreateModeRoutingParams(
-							TransportMode.walk).getTeleportedModeSpeed());
-			staticConfig.setMinimalTransferTime(
-					config.transitRouter().getAdditionalTransferTime());
-			staticConfig.setOptimization(RaptorOptimization.OneToOneRouting);
-			staticConfig.setUseModeMappingForPassengers(false);
+			RaptorStaticConfig staticConfig = createRaptorStaticConfig(config);
 
 			this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
 			scenario = CreateBaseTransitSchedule.addTrainSchedule(scenario, 
@@ -84,10 +63,8 @@ public class AdvanceJob  implements Runnable {
 							RunMatsim.date + "_" + stopwatch + ".csv");
 
 
-		
 			SwissRailRaptorData data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig ,
 					scenario.getNetwork());
-
 
 			
 			SwissRailRaptor raptor = new SwissRailRaptor(data, arg3, arg4, stopFinder);
@@ -109,6 +86,23 @@ public class AdvanceJob  implements Runnable {
 			System.exit(-1);
 		}
 
+	}
+
+
+	private RaptorStaticConfig createRaptorStaticConfig(Config config) {
+		RaptorStaticConfig staticConfig = new RaptorStaticConfig();
+		staticConfig.setBeelineWalkConnectionDistance(
+				config.transitRouter().getMaxBeelineWalkConnectionDistance());
+		staticConfig.setBeelineWalkDistanceFactor(
+				config.transitRouter().getDirectWalkFactor());
+		staticConfig.setBeelineWalkSpeed(
+				config.plansCalcRoute().getOrCreateModeRoutingParams(
+						TransportMode.walk).getTeleportedModeSpeed());
+		staticConfig.setMinimalTransferTime(
+				config.transitRouter().getAdditionalTransferTime());
+		staticConfig.setOptimization(RaptorOptimization.OneToOneRouting);
+		staticConfig.setUseModeMappingForPassengers(false);
+		return staticConfig;
 	}
 
 }
