@@ -210,7 +210,7 @@ public class PassengerDelayPerson {
 
 		if(route instanceof ExperimentalTransitRoute){
 			//No need to do anything?
-			nextLocationOfInterest = RunMatsim.facilities.get(((ExperimentalTransitRoute) route).getAccessStopId());
+			this.nextLocationOfInterest = RunMatsim.facilities.get(((ExperimentalTransitRoute) route).getAccessStopId());
 		} else if(route instanceof GenericRouteImpl){
 			// Walk to next stop/act instead of taking pt
 			this.nextLocationOfInterest = extractNextLocationOfInterest(path);
@@ -258,20 +258,21 @@ public class PassengerDelayPerson {
 		Entry<Double, TransitStopFacility> entry = RunMatsim.route2OrderedStopOffset.get(routeId).ceilingEntry(auxTime);
 		if(entry == null){
 			//Some kind of exception
-			this.nextLocationOfInterest = RunMatsim.route2OrderedStopOffset.get(routeId).lastEntry().getValue();
+			this.currentLocation = RunMatsim.route2OrderedStopOffset.get(routeId).lastEntry().getValue();
 			//STATION
 			//OR WALK
 		} else {
-			this.nextLocationOfInterest = entry.getValue();
+			this.currentLocation = entry.getValue();
 		}
-		Id<TransitStopFacility> stopId = ((TransitStopFacility) nextLocationOfInterest).getId();
-		double arrivalTime = departureTime + RunMatsim.route2StopArrival.get(routeId).get(stopId);
+		Id<TransitStopFacility> nextStopId = ((TransitStopFacility) nextLocationOfInterest).getId();
+		double arrivalTime = departureTime + RunMatsim.route2StopArrival.get(routeId).get(nextStopId);
+		
 		//madsp: Couldn't this just be arrivalTime? When is it ever necessary to use currentClock? Can you still be in vehicle when 
 			// currentClock has surpassed arrivalTime?
 		this.nextTimeOfInterest = Math.max(arrivalTime, this.currentClock); 
 
 
-		return calculateShortestPath(this.nextLocationOfInterest, this.pathDestinationLocation,
+		return calculateShortestPath(this.currentLocation, this.pathDestinationLocation,
 				this.nextTimeOfInterest);
 	}
 
@@ -301,7 +302,7 @@ public class PassengerDelayPerson {
 			ExperimentalTransitRoute expRoute = (ExperimentalTransitRoute) route;
 			Id<TransitStopFacility> fromStopId = expRoute.getAccessStopId();
 			Id<TransitStopFacility> toStopId = expRoute.getEgressStopId();
-			nextLocationOfInterest = RunMatsim.facilities.get(toStopId);
+			//nextLocationOfInterest = RunMatsim.facilities.get(toStopId);
 			Leg leg = this.currentPath.get(0);
 			double expectedEgressTime = leg.getDepartureTime() + leg.getTravelTime();
 
@@ -318,10 +319,9 @@ public class PassengerDelayPerson {
 				this.currentClock = boardingTime;
 				this.nextEgressTime = expectedEgressTime;
 
-				ExperimentalTransitRoute etr = (ExperimentalTransitRoute) route;
 				events.add(new PassengerDelayEvent(PassengerDelayEvent.EventType.BOARDING, 
-						this.currentClock, this.currentLocation, RunMatsim.facilities.get(etr.getEgressStopId()),
-						etr.getLineId().toString()));
+						this.currentClock, this.currentLocation, RunMatsim.facilities.get(toStopId),
+						expRoute.getLineId().toString()));
 				entersVehicleFunction();
 			} else {
 				//Wait until next time to see if a better opportunity arises.
@@ -391,17 +391,18 @@ public class PassengerDelayPerson {
 		if(this.stopwatch  + timeStep > this.nextEgressTime){ // Have to get off before next time step
 			Leg leg = this.currentPath.get(0);
 			Route route = this.currentPath.get(0).getRoute();
-			Id<TransitStopFacility> stopId = ((ExperimentalTransitRoute) route).getEgressStopId();
+			Id<TransitStopFacility> toStopId = ((ExperimentalTransitRoute) route).getEgressStopId();
 			this.currentDepartureId = null;
 			this.currentClock = leg.getDepartureTime() + leg.getTravelTime();
-			this.currentLocation = RunMatsim.facilities.get(stopId);
+			this.currentLocation = RunMatsim.facilities.get(toStopId);
 			this.currentPath.remove(0);
 			route = this.currentPath.get(0).getRoute();
 			if(route instanceof GenericRouteImpl && ((GenericRouteImpl) route).getDistance() == 0){
 				this.currentPath.remove(0);
 				route = this.currentPath.get(0).getRoute();
 			}
-
+			
+			this.nextLocationOfInterest = extractNextLocationOfInterest(this.currentPath);
 			if(route instanceof GenericRouteImpl){
 				this.status = Status.WALK;
 				if(RunMatsim.elaborateLogging){
@@ -430,7 +431,7 @@ public class PassengerDelayPerson {
 
 
 	private void stillInVehicleFunction() {
-		currentPath = whereIsDepartureAtTime();
+		this.currentPath = whereIsDepartureAtTime();
 		//nextLocationOfInterest is now the next stop of the current departure.
 		
 		if(RunMatsim.elaborateLogging){
@@ -439,14 +440,15 @@ public class PassengerDelayPerson {
 		Route route = this.currentPath.get(0).getRoute();
 		if(route instanceof ExperimentalTransitRoute && 
 				isSameDeparture( ((ExperimentalTransitRoute) route).getRouteId() ) ){
-			
+			//If the shortest path is to stay on the current departure...
+				
 			ExperimentalTransitRoute expRoute =  (ExperimentalTransitRoute) route;
 			Id<TransitRoute> routeId = expRoute.getRouteId();
-			//If the shortest path is to stay on the current departure...
 			Leg leg = this.currentPath.get(0);
 			Id<TransitStopFacility> stopId = expRoute.getEgressStopId();
-			this.nextLocationOfInterest = RunMatsim.facilities.get(stopId);
+			this.currentLocation = RunMatsim.facilities.get(stopId);
 			this.nextEgressTime = leg.getDepartureTime() + RunMatsim.route2StopArrival.get(routeId).get(stopId);
+			this.currentPath.remove(0); //Now this.currentPath.get(0) should be a generic route.
 		} else { //It is a walking leg or a pt-leg with a different route, i.e. a walk or a transfer, i.e. get off!
 			this.nextEgressTime = this.nextTimeOfInterest;
 		}
@@ -455,8 +457,8 @@ public class PassengerDelayPerson {
 		if(this.stopwatch  + timeStep > this.nextEgressTime){ // Have to get off before next time step
 			route = this.currentPath.get(0).getRoute();
 			this.currentDepartureId = null;
+			this.nextLocationOfInterest = extractNextLocationOfInterest(this.currentPath);
 			this.currentClock = this.nextEgressTime;
-			this.currentLocation = this.nextLocationOfInterest;
 			if(route instanceof GenericRouteImpl){
 				if(((GenericRouteImpl) route).getDistance() == 0){ // Plain transfer
 					System.err.println("Does this ever happen!?!?!?!?!?!?!? Might be impossible" +
