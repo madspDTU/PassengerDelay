@@ -21,15 +21,17 @@ package org.matsim.project;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.matsim.api.core.v01.Id;
@@ -40,7 +42,9 @@ import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Population;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
+import org.matsim.core.config.groups.PlanCalcScoreConfigGroup.ModeParams;
 import org.matsim.core.controler.Controler;
+import org.matsim.core.gbl.Gbl;
 import org.matsim.core.population.io.PopulationReader;
 import org.matsim.core.population.routes.LinkNetworkRouteFactory;
 import org.matsim.core.population.routes.NetworkRoute;
@@ -75,33 +79,64 @@ public class RunMatsim {
 
 	// static String INPUT_FOLDER = "c:/workAtHome/PassengerDelay";
 	static String INPUT_FOLDER = "/work1/s103232/PassengerDelay";
-	static String date = "2014_09_01";
+	//static String date = "2014_09_04";
+	static String date = "base";
+	
 	static ActivityFacilitiesFactoryImpl facFac = new ActivityFacilitiesFactoryImpl();
 	static NetworkRoute networkRoute;
 	static ConcurrentHashMap<Id<TransitStopFacility>, TransitStopFacility> facilities = 
 			new ConcurrentHashMap<Id<TransitStopFacility>, TransitStopFacility>();
-	private static int cores = 2;
-	static ConcurrentHashMap<Id<Departure>, Id<TransitRoute>> dep2Route;
-	static ConcurrentHashMap<Id<Departure>, Id<TransitLine>> dep2Line;
-	
-	static ConcurrentHashMap<Id<TransitRoute>, ConcurrentSkipListMap<Double, TransitStopFacility>> route2OrderedStopOffset;
-	static ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>, Double>> route2StopDeparture;
-	static ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<Departure>, Double>> route2DepartureTime;
-	static ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>,Double>> route2StopArrival;
-	static ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Double,Id<Departure>>> route2Departure;
-
-	static int startTime = 3*3600;
-	static int endTime = 27*3600;
+	private static int cores = 1;
+	static ConcurrentHashMap<Integer, ConcurrentHashMap<Id<Departure>, Id<TransitRoute>>> dep2Route;
 
 
+	static ConcurrentHashMap<Id<TransitRoute>, ConcurrentSkipListMap<Double, TransitStopFacility>> latestRoute2OrderedStopOffset;
+	// Only used as an interim map for the below one;
+	static ConcurrentHashMap<Id<TransitRoute>, ConcurrentSkipListMap<Double, TransitStopFacility>> currentRoute2OrderedStopOffset;
 
-	public static boolean elaborateLogging = false;
-	public static boolean aggregateLogging = true;
-	public static boolean runParallelThreads = true;
+	static ConcurrentHashMap<Integer, ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>, Double>>> route2StopDeparture;
+
+	static ConcurrentHashMap<Integer, ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<Departure>, Double>>> route2DepartureTime;
+	static ConcurrentHashMap<Integer,ConcurrentHashMap<Id<TransitRoute>, 
+	ConcurrentHashMap<Id<TransitStopFacility>,Double>>> route2StopArrival;
+	static ConcurrentHashMap<Integer,ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Double,Id<Departure>>>> route2Departure;
+
+	static  int startTime = 3*3600;
+	static  int endTime = 27*3600;
+
+
+	private static final double transferBufferTime = 0.;
+	public static final boolean elaborateLogging = false;
+	public static final boolean aggregateLogging = true;
+	public static final boolean runParallelThreads = true;
 
 	public static SwissRailRaptor raptor;
 
-	static ConcurrentHashMap<Id<TransitRoute>, LinkedList<TransitRouteStop>> route2Stops;
+	//Needs to be implemented.
+	private static HashSet<String> ptSubModes = new HashSet<String>(Arrays.asList("train","bus","metro","train"));
+
+	private static double waitTimeUtility = -1.3;
+	private static double trainTimeUtility = -1.;
+	private static double trainDistanceUtility = 0.;
+	// Local trains even?
+	// Local trains even?
+	private static double busTimeUtility = -1.;
+	private static double busDistanceUtility = 0.;
+	private static double metroTimeUtility = -1.;
+	private static double metroDistanceUtility = 0.;
+	private static double walkTimeUtility = -1.6;
+	private static double walkDistanceUtility = 0.;
+	private static final double maxBeelineTransferWalk = 600.; // Furthest walk between to _transfer_ stations [m]
+
+
+
+
+	//Never used, except for transfering onto the current map in next timestep.
+
+	final static int TIMESTEP = 150;
+	private final static int DEPMAP_MEMORY = 3600*2;
+
+
 
 
 
@@ -109,10 +144,11 @@ public class RunMatsim {
 
 	public static void main(String[] args){
 
-		CreateBaseTransitSchedule.main(new String[]{});
-
+		CreateBaseTransitSchedule.init();
 		//Config config = ConfigUtils.loadConfig("/zhome/81/e/64390/git/matsim-example-project/input/1percent/config_eventPTRouter.xml");
 		Config config = ConfigUtils.createConfig();
+		Config nextConfig = ConfigUtils.createConfig();
+
 
 
 		// Things only read once
@@ -120,38 +156,76 @@ public class RunMatsim {
 		if(args != null && args.length > 0){
 			INPUT_FOLDER = args[0];
 			date = args[1];
-			cores = Integer.valueOf(args[2]);
+			if(args.length > 2){
+				cores = Integer.valueOf(args[2]);
+				if(args.length > 3){
+					endTime = Integer.valueOf(args[3])*3600;
+				}
+			}
 		}
-	
+
 
 		config.network().setInputFile(INPUT_FOLDER + "/OtherInput/network.xml.gz");
 		config.transit().setTransitScheduleFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule_InfrastructureOnly.xml.gz");
 		if(!runParallelThreads){
 			config.transit().setTransitScheduleFile("/zhome/81/e/64390/git/matsim-example-project/input/full/schedule_CPH.xml.gz");
 		}
+		nextConfig.network().setInputFile(INPUT_FOLDER + "/OtherInput/network.xml.gz");
+		nextConfig.transit().setTransitScheduleFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule_InfrastructureOnly.xml.gz");
+		if(!runParallelThreads){
+			nextConfig.transit().setTransitScheduleFile("/zhome/81/e/64390/git/matsim-example-project/input/full/schedule_CPH.xml.gz");
+		}
 
-		//Implement the events based PT router instead - it uses less transfer links.
 
-		config.transitRouter().setMaxBeelineWalkConnectionDistance(500.);
-		config.transitRouter().setSearchRadius(3000.);
-		config.transitRouter().setAdditionalTransferTime(0.);
+		// Google Maps of empirisk viden
+		config.transitRouter().setMaxBeelineWalkConnectionDistance(maxBeelineTransferWalk );
+		config.transitRouter().setSearchRadius(3000.);  // Andersson 2013 (evt 2016)
+		config.transitRouter().setAdditionalTransferTime(transferBufferTime);
 		config.transitRouter().setExtensionRadius(5000.);
 		config.transitRouter().setDirectWalkFactor(1.);
 		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setBeelineDistanceFactor(
 				1.);
 		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setTeleportedModeSpeed(
 				1.);
+		config.transit().setTransitModes(ptSubModes);
+		for(String mode : ptSubModes){
+			ModeParams params = new ModeParams(mode);
+			switch(mode){
+			case "train": 
+				params.setMarginalUtilityOfTraveling(trainTimeUtility);
+				params.setMarginalUtilityOfDistance(trainDistanceUtility);
+			case "bus":
+				params.setMarginalUtilityOfTraveling(busTimeUtility);
+				params.setMarginalUtilityOfDistance(busDistanceUtility);
+			case "metro":
+				params.setMarginalUtilityOfTraveling(metroTimeUtility);
+				params.setMarginalUtilityOfDistance(metroDistanceUtility);
+			case TransportMode.transit_walk:
+				params.setMarginalUtilityOfTraveling(walkTimeUtility);
+				params.setMarginalUtilityOfDistance(walkDistanceUtility);
+			case TransportMode.walk:
+				params.setMarginalUtilityOfDistance(walkTimeUtility);
+				params.setMarginalUtilityOfDistance(walkDistanceUtility);
+			default:
+				// Blank
+			}
+			config.planCalcScore().addModeParams(params);
+		}
+		config.planCalcScore().setMarginalUtlOfWaitingPt_utils_hr(waitTimeUtility);
 
 
 
 
-		config.travelTimeCalculator().setTraveltimeBinSize(15*3600);
+		config.travelTimeCalculator().setTraveltimeBinSize(TIMESTEP);
 		config.qsim().setStartTime(0);
-		config.qsim().setEndTime(27*3600);
+		config.qsim().setEndTime(endTime);
 
 
 
 		Scenario scenario = ScenarioUtils.loadScenario(config) ;
+		Scenario nextScenario = ScenarioUtils.loadScenario(nextConfig);
+
+
 
 
 		Controler controler = new Controler(scenario);
@@ -161,15 +235,6 @@ public class RunMatsim {
 
 
 
-		Population fakePopulation = ScenarioUtils.createScenario(ConfigUtils.createConfig()).getPopulation();
-
-		RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
-		RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
-
-		RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
-		Map<String, RoutingModule> routingModuleMap = new HashMap<String, RoutingModule>();
-
-		RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(fakePopulation, iae, routingModuleMap);
 
 		RaptorStaticConfig staticConfig = new RaptorStaticConfig();
 		staticConfig.setBeelineWalkConnectionDistance(
@@ -182,7 +247,8 @@ public class RunMatsim {
 		staticConfig.setMinimalTransferTime(
 				config.transitRouter().getAdditionalTransferTime());
 		staticConfig.setOptimization(RaptorOptimization.OneToOneRouting);
-		staticConfig.setUseModeMappingForPassengers(false);
+		staticConfig.setUseModeMappingForPassengers(true);
+
 
 
 
@@ -194,7 +260,9 @@ public class RunMatsim {
 		PopulationReader populationReader = new PopulationReader(scenario);
 		populationReader.readFile("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH.xml.gz");
 
-
+		if(cores > scenario.getPopulation().getPersons().size()){
+			cores = scenario.getPopulation().getPersons().size(); 
+		}
 		PassengerDelayPerson[] passengerDelayPersons = new PassengerDelayPerson[scenario.getPopulation().getPersons().size()];
 		int i = 0;
 		for(Person person : scenario.getPopulation().getPersons().values()){
@@ -223,149 +291,267 @@ public class RunMatsim {
 		}
 
 
-
-
 		networkRoute = (NetworkRoute) new LinkNetworkRouteFactory().createRoute(
 				Id.create("DummyLink",Link.class), Id.create("DummyLink",Link.class));
 
+		initialiseDepMaps();
+
+
 
 		System.out.println("Using " + cores + " cores");	
-
-		for(int stopwatch = startTime; stopwatch < endTime; stopwatch += 300){
-
+		if(date.equals("base")){
+			
+			
+			CreateBaseTransitSchedule.clearTransitSchedule(scenario);
+			nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
+					RunMatsim.INPUT_FOLDER + "/BaseSchedules/BaseSchedule.xml.gz");
+			nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
+					RunMatsim.INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz");
+			nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
+					RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz");
+			createDepMaps(RunMatsim.startTime, nextScenario.getTransitSchedule().getTransitLines().values());
+			
 			long backThen = System.currentTimeMillis();
-			scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
+			
+			System.out.print("- Graph building times: ");
 
-			//Have to modify these two - they do not work without minor(/major) changes. Most likely due to changes in column names.
-			scenario = CreateBaseTransitSchedule.addTrainSchedule(scenario, 
-					INPUT_FOLDER + "/Disaggregate/Train/" + date + "/DisaggregateSchedule_" + date + "_" + stopwatch + ".csv");
-			scenario = CreateBaseTransitSchedule.addBusSchedule(scenario,
-					INPUT_FOLDER + "/Disaggregate/Bus/" + date + "/DisaggregateBusSchedule_" + date + "_" + stopwatch + ".csv");
+			BaseJob[] baseJobs = new BaseJob[cores];
+			for(int j = 0; j < cores; j++){
+				baseJobs[j] = new BaseJob(startTime, persons[j], scenarios[j]);		
+			}
+			Thread[] threads = new Thread[cores];
+			for(int j = 0; j < cores; j++){
+				threads[j] = new Thread(baseJobs[j]);
+			}
+			for(int j = 0; j < cores; j++){
+				threads[j].start();
+			}
+			for(int j = 0; j < cores; j++){
+				try {
+					threads[j].join();
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			
 
-			createDepMaps(scenario.getTransitSchedule().getTransitLines().values());
+			long now = System.currentTimeMillis(); 
+			long duration = now - backThen;
+			System.out.println("\n - Finished simulating after: " + duration/1000 + "s. (s/r = " + duration/1000./TIMESTEP +")"  );
 
-			System.out.println("Stopwatch is now: " + intToTimeString(stopwatch));
 
-			// RAPTOR
-			//		ThreadPoolExecutor executor = null;
-			//		executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(cores);
-			//		for(LinkedList<PassengerDelayPerson> pList: persons){
-			//			executor.execute(new AdvanceJob(stopwatch, pList));		
-			//		}
-			//i = 0;
-			//for(LinkedList<PassengerDelayPerson> pList: persons){
-			//	executor.execute(advanceJobs[i]);		
-			//	}
-			//	executor.shutdown();
+			
+			FileWriter writer;
+			try {
+				System.out.println("Beginning to write base results...");
+				writer = new FileWriter(new File("/work1/s103232/PassengerDelay/Output/Events_base.csv"));
+				writer.append("AgentId;TripId;Type;Time;FromX;FromY;FromString;ToX;ToY;ToString;How;DepartureId\n");
+				for(PassengerDelayPerson person :passengerDelayPersons){
+					writer.append(person.eventsToString());
+				}
+				writer.flush();
+				writer.close();
+				System.out.println("Finished writing base results...");
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+		} else {
 
-			if(runParallelThreads){
-				AdvanceJob[] advanceJobs = new AdvanceJob[cores];
-				for(i = 0; i < cores; i++){
-					advanceJobs[i] = new AdvanceJob(stopwatch, persons[i], scenarios[i]);		
+			for(int stopwatch = startTime; stopwatch <= endTime; stopwatch += TIMESTEP ){
+				long backThen = System.currentTimeMillis();
+
+				if(stopwatch == startTime){ // stopwatch == startTime
+					CreateBaseTransitSchedule.clearTransitSchedule(nextScenario);
+					nextScenario= CreateBaseTransitSchedule.addTrainSchedule(nextScenario, 
+							INPUT_FOLDER + "/Disaggregate/Train/" + date + "/DisaggregateSchedule_" + date + "_" + stopwatch + ".csv");
+					nextScenario = CreateBaseTransitSchedule.addBusSchedule(nextScenario,
+							INPUT_FOLDER + "/Disaggregate/Bus/" + date + "/DisaggregateBusSchedule_" + date + "_" + stopwatch + ".csv");
+					nextScenario = CreateBaseTransitSchedule.addStaticSchedule(nextScenario, INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz", stopwatch); //Add string to input. TODO
+					nextScenario = CreateBaseTransitSchedule.addStaticSchedule(nextScenario, INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz", stopwatch); //Add string to input. TODO
+					createDepMaps(stopwatch, nextScenario.getTransitSchedule().getTransitLines().values());
+				}	
+				currentRoute2OrderedStopOffset = latestRoute2OrderedStopOffset;
+				Gbl.assertIf(areDeparturesNonReversing(nextScenario.getTransitSchedule().getTransitLines(), stopwatch));
+				if(stopwatch < endTime){
+					CreateBaseTransitSchedule.clearTransitSchedule(nextScenario);
+					nextScenario= CreateBaseTransitSchedule.addTrainSchedule(nextScenario, 
+							INPUT_FOLDER + "/Disaggregate/Train/" + date + "/DisaggregateSchedule_" + date + "_" + (stopwatch + TIMESTEP) + ".csv");
+					nextScenario = CreateBaseTransitSchedule.addBusSchedule(nextScenario,
+							INPUT_FOLDER + "/Disaggregate/Bus/" + date + "/DisaggregateBusSchedule_" + date + "_" + (stopwatch + TIMESTEP) + ".csv");
+					nextScenario = CreateBaseTransitSchedule.addStaticSchedule(nextScenario, INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz", stopwatch + TIMESTEP); 
+					nextScenario = CreateBaseTransitSchedule.addStaticSchedule(nextScenario, INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz", stopwatch + TIMESTEP); 
+				} // when stopwatch == endTime we just add them to the last maps without updating the schedule. 
+				createDepMaps(stopwatch + TIMESTEP, nextScenario.getTransitSchedule().getTransitLines().values());
+
+				if(stopwatch > startTime + DEPMAP_MEMORY){
+					removeOldEntriesOfDepMaps(stopwatch - DEPMAP_MEMORY);
 				}
 
-				i=0;
-				Thread[] threads = new Thread[cores];
-				for(int j = 0; j < cores; j++){
-					threads[j] = new Thread(advanceJobs[j]);
-				}
-				for(int j = 0; j < cores; j++){
-					threads[j].start();
-				}
+				Date dateObject = new Date();
+				SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+				String date = "___" + formatter.format(dateObject) + "___";
+				System.out.println(date +"\nStopwatch is now " + intToTimeString(stopwatch));
+				System.out.print("- Graph building times: ");
+
+				if(runParallelThreads){
+					AdvanceJob[] advanceJobs = new AdvanceJob[cores];
+					for(int j = 0; j < cores; j++){
+						advanceJobs[j] = new AdvanceJob(stopwatch, persons[j], scenarios[j]);		
+					}
+					Thread[] threads = new Thread[cores];
+					for(int j = 0; j < cores; j++){
+						threads[j] = new Thread(advanceJobs[j]);
+					}
+					for(int j = 0; j < cores; j++){
+						threads[j].start();
+					}
 
 
-				for(int j = 0; j < cores; j++){
+					for(int j = 0; j < cores; j++){
+						try {
+							threads[j].join();
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}
+
+				} else {
+					for(PassengerDelayPerson person : passengerDelayPersons){
+						person.setStopwatch(stopwatch);
+						person.advance();
+					}
+				}
+
+				long now = System.currentTimeMillis(); 
+				long duration = now - backThen;
+				System.out.println("\n - Finished simulating after: " + duration/1000 + "s. (s/r = " + duration/1000./TIMESTEP +")"  );
+
+
+
+				if(aggregateLogging){
+					//		System.out.println("real/sim (Graph): " + 300./(backNow-backThen)*1000.  );
+					//		System.out.println("real/sim (Simulation): " + 300./(now-then)*1000.  );
+					System.out.println("Status:");
+					int activity = 0, station = 0, vehicle = 0, walk = 0;	
+					for(PassengerDelayPerson person : passengerDelayPersons){
+						switch(person.getStatus()){
+						case ACTIVITY: 				activity++;			break;
+						case STATION:				station++;			break;
+						case VEHICLE:				vehicle++;			break;
+						case WALK:					walk++;			break;
+						default:	System.err.println("Something's terribly wrong with the statuses");		break;
+						}
+					}
+					System.out.println("  - Activity: " + activity);
+					System.out.println("  - Station: " + station);
+					System.out.println("  - Vehicle: " + vehicle);
+					System.out.println("  - Walk: " + walk);
+					System.out.print("\n\n");
+				}
+
+				if(stopwatch  == (6*3600) || stopwatch == (8*3600) || stopwatch == endTime){
+					System.out.println("\nWriting data at time " + stopwatch + "...");
+					String hourString = "";
+					if(stopwatch != endTime){
+						int hour = (int) stopwatch / 3600;
+						hourString = "_" + hour;
+					}
 					try {
-						threads[j].join();
-					} catch (InterruptedException e) {
+						File folder =new File("/work1/s103232/PassengerDelay/Output");
+						File files[]=  folder.listFiles();
+						for(File f:files){
+							if(f.getName().contains(date)){
+								f.delete();
+							}
+						}
+						FileWriter writer = new FileWriter(new File("/work1/s103232/PassengerDelay/Output/Events_" +
+								date + hourString + ".csv"));
+						writer.append("AgentId;TripId;Type;Time;FromX;FromY;FromString;ToX;ToY;ToString;How;DepartureId\n");
+						for(PassengerDelayPerson person :passengerDelayPersons){
+							writer.append(person.eventsToString());
+						}
+						writer.flush();
+						writer.close();
+					} catch (IOException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
 				}
-
 			}
 
-
-
-
-			SwissRailRaptorData data;
-			if(!runParallelThreads){
-				data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig , scenario.getNetwork());
-				raptor = new SwissRailRaptor(data, arg3, arg4, stopFinder);
-			}
-			long backNow = System.currentTimeMillis();
-
-
-
-			// Processing the population
-			i = 0;
-			ThreadPoolExecutor executor = null;
-			if(runParallelThreads){
-				executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(cores);
-			}
-			long then = System.currentTimeMillis(); 
-
-
-			if(!runParallelThreads){
-				for(PassengerDelayPerson person : passengerDelayPersons){
-					person.setStopwatch(stopwatch);
-					//if(person.id.toString().equals("393188_2_Person")){
-					person.advance();
-					//}
-				}
-			}
-
-			long now = System.currentTimeMillis(); 
-			if(!runParallelThreads){
-				System.out.println("real/sim (Total): " + 300./(now-backThen)*1000.  );
-			}
-
-
-			if(aggregateLogging){
-				//		System.out.println("real/sim (Graph): " + 300./(backNow-backThen)*1000.  );
-				//		System.out.println("real/sim (Simulation): " + 300./(now-then)*1000.  );
-				System.out.println("Status:");
-				int activity = 0, station = 0, vehicle = 0, walk = 0;	
-				for(PassengerDelayPerson person : passengerDelayPersons){
-					switch(person.getStatus()){
-					case ACTIVITY: 				activity++;			break;
-					case STATION:				station++;			break;
-					case VEHICLE:				vehicle++;			break;
-					case WALK:					walk++;			break;
-					default:	System.err.println("Something's terribly wrong with the statuses");		break;
-					}
-				}
-				System.out.println("  - Activity: " + activity);
-				System.out.println("  - Station: " + station);
-				System.out.println("  - Vehicle: " + vehicle);
-				System.out.println("  - Walk: " + walk);
-			}
 		}
 
-		try {
-			FileWriter writer = new FileWriter(new File("/work1/s103232/PassengerDelay/Output/Events_" +
-		date + ".csv"));
-			writer.append("AgentId;TripId;Type;Time;FromX;FromY;FromString;ToX;ToY;ToString;How\n");
-			for(PassengerDelayPerson person :passengerDelayPersons){
-				int tripId = 0;
-				for(PassengerDelayEvent event : person.events){
-					writer.append(person.id + ";" + tripId + ";" + 
-							event.type + ";" + event.time + ";" + event.fromCoord.getX() + ";"
-							+ event.fromCoord.getY() + ";" + event.fromString + ";" +
-							+ event.toCoord.getX() + ";" + event.toCoord.getY() + ";"+
-							event.toString + ";" + event.how + "\n");
-					if(event.type.equals(PassengerDelayEvent.EventType.ACTIVITY_START)){
-						tripId++;
+
+
+	}
+
+
+
+
+
+
+
+	private static boolean areDeparturesNonReversing(Map<Id<TransitLine>, TransitLine> transitLines, double stopwatch) {
+		for(TransitLine line : transitLines.values()){
+			for(TransitRoute route : line.getRoutes().values()){
+				double prevTime = Double.NEGATIVE_INFINITY;
+				int counter = 1;
+				for(TransitRouteStop stop : route.getStops()){
+					double time = stop.getArrivalOffset();
+					if(prevTime > time && prevTime - time <= 20*3600){
+						System.err.println("@" + stopwatch + ": " + route.getId() + " of line " + line.getId() + 
+								" Stop#" + counter + ": " + stop.getStopFacility().getId() + "Arrival error: " + prevTime + " > " + time);
+						return false;
 					}
+					prevTime = time;
+					time = stop.getDepartureOffset();
+					if(prevTime > time && prevTime - time <= 20*3600){
+						System.err.println("@" + stopwatch + ": " + route.getId() + " of line " + line.getId() + 
+								" Stop #" + counter + ": " + stop.getStopFacility().getId() + ": Departure error: " + prevTime + " > " + time);
+						return false;
+					}
+					counter++;
 				}
 			}
-			writer.flush();
-			writer.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
+		return true;
+	}
 
+
+
+
+
+
+
+	private static void removeOldEntriesOfDepMaps(int time) {
+		dep2Route.remove(time);
+		route2StopArrival.remove(time);
+		route2Departure.remove(time);
+		route2DepartureTime.remove(time);
+		route2StopDeparture.remove(time);
+	}
+
+
+
+
+
+
+
+	private static void initialiseDepMaps() {
+
+		route2StopArrival= new ConcurrentHashMap<Integer,ConcurrentHashMap<Id<TransitRoute>,
+				ConcurrentHashMap<Id<TransitStopFacility>,Double>>>();
+		route2Departure= new ConcurrentHashMap<Integer,ConcurrentHashMap<Id<TransitRoute>,ConcurrentHashMap<Double,Id<Departure>>>>();
+
+		dep2Route = new ConcurrentHashMap<Integer, ConcurrentHashMap<Id<Departure>,Id<TransitRoute>>>();
+		route2DepartureTime =  new ConcurrentHashMap<Integer,ConcurrentHashMap<Id<TransitRoute>,
+				ConcurrentHashMap<Id<Departure>, Double>>>();
+		route2StopDeparture = new ConcurrentHashMap<Integer,ConcurrentHashMap<Id<TransitRoute>,
+				ConcurrentHashMap<Id<TransitStopFacility>,Double>>>();
 
 
 	}
@@ -384,57 +570,47 @@ public class RunMatsim {
 
 
 
-	private static void createDepMaps(Collection<TransitLine> transitLines) {
-		dep2Route = new ConcurrentHashMap<Id<Departure>,Id<TransitRoute>>();
-		dep2Line = new ConcurrentHashMap<Id<Departure>,Id<TransitLine>>();
-		
-		route2OrderedStopOffset = 
+
+	private static void createDepMaps(int stopwatch, Collection<TransitLine> transitLines) {
+		dep2Route.put(stopwatch, new ConcurrentHashMap<Id<Departure>,Id<TransitRoute>>());
+
+		latestRoute2OrderedStopOffset = 
 				new ConcurrentHashMap<Id<TransitRoute>, ConcurrentSkipListMap<Double,TransitStopFacility>>();
-		route2StopArrival = 
-				new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>,Double>>();
-
-		route2DepartureTime = new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<Departure>,Double>>();
-		route2StopDeparture = new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>,Double>>();
-		route2StopArrival = new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>, Double>>();
-		route2Departure = new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Double, Id<Departure>>>();
-		route2Stops = new ConcurrentHashMap<Id<TransitRoute>, LinkedList<TransitRouteStop>>();
-
+		route2Departure.put(stopwatch, new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Double, Id<Departure>>>()); 
+		route2DepartureTime.put(stopwatch, new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<Departure>,Double>>());
+		route2StopDeparture.put(stopwatch, new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>,Double>>());
+		route2StopArrival.put(stopwatch, 
+				new ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>, Double>>());
 
 		for(TransitLine line : transitLines){
 			for(TransitRoute route : line.getRoutes().values()){
+
 				ConcurrentSkipListMap<Double,TransitStopFacility> skipListMap =
 						new ConcurrentSkipListMap<Double,TransitStopFacility>();
 				ConcurrentHashMap<Id<TransitStopFacility>,Double> hashMap = 
 						new ConcurrentHashMap<Id<TransitStopFacility>,Double>();
 				ConcurrentHashMap<Id<TransitStopFacility>,Double> hashMap2 = 
 						new ConcurrentHashMap<Id<TransitStopFacility>,Double>();
-				LinkedList<TransitRouteStop> linkedList = new LinkedList<TransitRouteStop>();
-
 				for(TransitRouteStop stop : route.getStops()){
 					skipListMap.putIfAbsent(stop.getDepartureOffset(), stop.getStopFacility());
 					hashMap.put(stop.getStopFacility().getId(), stop.getDepartureOffset());
 					hashMap2.put(stop.getStopFacility().getId(), stop.getArrivalOffset());
-					linkedList.addLast(stop);
 				}
-				route2OrderedStopOffset.put(route.getId(), skipListMap);
-				route2StopDeparture.put(route.getId(), hashMap);
-				route2StopArrival.put(route.getId(), hashMap2);
-				route2Stops.put(route.getId(), linkedList);
-
+				latestRoute2OrderedStopOffset.put(route.getId(), skipListMap);
+				route2StopDeparture.get(stopwatch).put(route.getId(), hashMap);
+				route2StopArrival.get(stopwatch).put(route.getId(), hashMap2);
 
 				ConcurrentHashMap<Id<Departure>,Double> hashMap3 = 
 						new ConcurrentHashMap<Id<Departure>,Double>();
 				ConcurrentHashMap<Double, Id<Departure>> hashMap4 = 
 						new ConcurrentHashMap<Double, Id<Departure>>();
-
 				for(Departure departure : route.getDepartures().values()){
-					dep2Route.put(departure.getId(), route.getId());
-					dep2Line.put(departure.getId(), line.getId());
+					dep2Route.get(stopwatch).put(departure.getId(), route.getId());
 					hashMap3.put(departure.getId(),departure.getDepartureTime());
 					hashMap4.put(departure.getDepartureTime(), departure.getId());
 				}
-				route2DepartureTime.put(route.getId(), hashMap3);
-				route2Departure.put(route.getId(), hashMap4);
+				route2DepartureTime.get(stopwatch).put(route.getId(), hashMap3);
+				route2Departure.get(stopwatch).put(route.getId(), hashMap4);
 			}
 		}
 	}
@@ -453,9 +629,11 @@ public class RunMatsim {
 
 		//Implement the events based PT router instead - it uses less transfer links.
 
-		config.transitRouter().setMaxBeelineWalkConnectionDistance(500.);
+		//750. takes 56, whereas 600 takes 39.. This parameter is probably the one that influences computation time the most
+		// 600 is 10 minutes walk. Seems legit.
+		config.transitRouter().setMaxBeelineWalkConnectionDistance(maxBeelineTransferWalk); 
 		config.transitRouter().setSearchRadius(3000.);
-		config.transitRouter().setAdditionalTransferTime(0.);
+		config.transitRouter().setAdditionalTransferTime(transferBufferTime);
 		config.transitRouter().setExtensionRadius(5000.);
 		config.transitRouter().setDirectWalkFactor(1.);
 		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setBeelineDistanceFactor(
@@ -465,7 +643,6 @@ public class RunMatsim {
 
 		return config;
 	}
-
 
 
 }

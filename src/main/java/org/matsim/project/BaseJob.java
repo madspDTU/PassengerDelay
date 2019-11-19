@@ -3,10 +3,12 @@ package org.matsim.project;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.core.config.Config;
 import org.matsim.core.router.RoutingModule;
+
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorIntermodalAccessEgress;
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorParametersForPerson;
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorStopFinder;
@@ -20,7 +22,7 @@ import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig.RaptorOptimization;
 
-public class AdvanceJob  implements Runnable {
+public class BaseJob  implements Runnable {
 
 	final private LinkedList<PassengerDelayPerson> persons;
 	final int stopwatch;
@@ -28,7 +30,7 @@ public class AdvanceJob  implements Runnable {
 	private long buildDuration;
 	private long fullDuration;
 
-	AdvanceJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario){
+	BaseJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario){
 		this.persons = persons;
 		this.stopwatch = stopwatch;
 		this.scenario = scenario;
@@ -58,17 +60,15 @@ public class AdvanceJob  implements Runnable {
 
 			this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
 			scenario = CreateBaseTransitSchedule.addTrainSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + RunMatsim.date + "/DisaggregateSchedule_" + 
-							RunMatsim.date + "_" + stopwatch + ".csv");
+					RunMatsim.INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv");
 			scenario = CreateBaseTransitSchedule.addBusSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/Disaggregate/Bus/" + RunMatsim.date + "/DisaggregateBusSchedule_" + 
-							RunMatsim.date + "_" + stopwatch + ".csv");
+					RunMatsim.INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv");
 			scenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz", stopwatch);
+					RunMatsim.INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz");
 			scenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz", stopwatch);
-
-
+					RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz");
+			
+			
 			SwissRailRaptorData data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig ,
 					scenario.getNetwork());
 
@@ -82,7 +82,7 @@ public class AdvanceJob  implements Runnable {
 			for(PassengerDelayPerson person : persons){
 				person.setStopwatch(stopwatch);
 				person.setRaptor(raptor);
-				person.advance();
+				person.createEntireDayEvents();
 			}
 			long backNow = System.currentTimeMillis();
 			fullDuration = (backNow - backThen)/1000;

@@ -18,9 +18,10 @@ public class PassengerDelayEvent {
 	Coord toCoord;
 	String toString;
 	String how;
+	String departureId;
 
 
-	public PassengerDelayEvent(EventType type, double time, Facility fromLocation, Facility toLocation, String how) {
+	public PassengerDelayEvent(EventType type, double time, Facility fromLocation, Facility toLocation, String how, String departureId) {
 		this.type = type;
 		this.time = time;
 		this.fromCoord = fromLocation.getCoord();
@@ -30,5 +31,10 @@ public class PassengerDelayEvent {
 		this.toString = toLocation instanceof TransitStopFacility ? 
 				((TransitStopFacility) toLocation).getId().toString() : "ACTIVITY";
 		this.how = how;
+		this.departureId = departureId;
+	}
+	
+	public PassengerDelayEvent(EventType type, double time, Facility fromLocation, Facility toLocation, String how) {
+		this(type, time, fromLocation, toLocation, how, "");
 	}
 }

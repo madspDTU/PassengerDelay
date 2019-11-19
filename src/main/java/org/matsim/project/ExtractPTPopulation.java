@@ -47,6 +47,8 @@ public class ExtractPTPopulation {
 
 
 		for(Person person : population.getPersons().values()){
+			if(person.getId().toString().equals("585990_3_Person")) {
+				
 			Plan plan = person.getSelectedPlan();
 			int i = 0;
 			boolean[] keptElement = new boolean[plan.getPlanElements().size()];
@@ -70,11 +72,12 @@ public class ExtractPTPopulation {
 				addPlanToPersonAndPopulation(newPopulation, pf, person, newPlan);
 			}
 		}
+		}
 
 
 
 
-		pw.write("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH.xml.gz");
+		pw.write("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH_ONEPERSON.xml.gz");
 
 
 		System.out.println("Total number of agents before: " + population.getPersons().size());
