@@ -67,7 +67,7 @@ import ch.sbb.matsim.routing.pt.raptor.RaptorRouteSelector;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig.RaptorOptimization;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStopFinder;
-import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
+import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptor;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorModule;
 
@@ -110,7 +110,7 @@ public class RunMatsim {
 	public static final boolean aggregateLogging = true;
 	public static final boolean runParallelThreads = true;
 
-	public static SwissRailRaptor raptor;
+	public static MySwissRailRaptor raptor;
 
 	//Needs to be implemented.
 	private static HashSet<String> ptSubModes = new HashSet<String>(Arrays.asList("train","bus","metro","train"));

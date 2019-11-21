@@ -25,7 +25,8 @@ import org.matsim.pt.transitSchedule.api.Departure;
 import org.matsim.pt.transitSchedule.api.TransitRoute;
 import org.matsim.pt.transitSchedule.api.TransitStopFacility;
 
-import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
+import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptor;
+
 
 public class PassengerDelayPerson {
 
@@ -39,7 +40,7 @@ public class PassengerDelayPerson {
 	// and an additional length of
 	// 1.3.
 
-	private SwissRailRaptor raptor;
+	private MySwissRailRaptor raptor;
 	private List<Leg> currentPath;
 	private Status status;
 
@@ -177,11 +178,11 @@ public class PassengerDelayPerson {
 		}
 	}
 
-	void setRaptor(SwissRailRaptor raptor) {
+	void setRaptor(MySwissRailRaptor raptor) {
 		this.raptor = raptor;
 	}
 
-	void setZeroSearchRadiusRaptor(SwissRailRaptor raptor_searchRadius0) {
+	void setZeroSearchRadiusRaptor(MySwissRailRaptor raptor_searchRadius0) {
 		this.raptor = raptor_searchRadius0;
 	}
 
@@ -238,7 +239,14 @@ public class PassengerDelayPerson {
 	private List<Leg> calculateShortestPath(Facility fromFacility, Facility toFacility, double time) {
 
 		this.tPSPS = this.stopwatch; 
-		List<Leg> path = this.raptor.calcRoute(fromFacility, toFacility, time, null);
+		boolean onBoard = getStatus() == Status.VEHICLE;
+		Id<TransitRoute> currentRouteId = null;
+		Id<TransitStopFacility> stopId = null;
+		if(onBoard) {
+			currentRouteId = RunMatsim.dep2Route.get(stopwatch - timeStep).get(currentDepartureId);
+			stopId = ((TransitStopFacility) fromFacility).getId();
+		}
+		List<Leg> path = this.raptor.calcRoute(fromFacility, toFacility, time, null, onBoard, currentRouteId, stopId);
 		path = stripPathForZeroWalksAndConvert2MyTransitRoute(path);
 		return path;
 	}

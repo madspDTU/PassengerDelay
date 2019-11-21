@@ -16,7 +16,7 @@ import ch.sbb.matsim.routing.pt.raptor.RaptorParametersForPerson;
 import ch.sbb.matsim.routing.pt.raptor.RaptorRouteSelector;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStopFinder;
-import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
+import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptor;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig.RaptorOptimization;
 
@@ -76,7 +76,7 @@ public class AdvanceJob  implements Runnable {
 			buildDuration = (backMiddle - backThen)/1000;
 			System.out.print( buildDuration + "s ");
 			
-			SwissRailRaptor raptor = new SwissRailRaptor(data, arg3, arg4, stopFinder);
+			MySwissRailRaptor raptor = new MySwissRailRaptor(data, arg3, arg4, stopFinder);
 			
 			
 			for(PassengerDelayPerson person : persons){
