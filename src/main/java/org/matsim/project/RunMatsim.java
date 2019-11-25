@@ -79,8 +79,8 @@ public class RunMatsim {
 
 	// static String INPUT_FOLDER = "c:/workAtHome/PassengerDelay";
 	static String INPUT_FOLDER = "/work1/s103232/PassengerDelay";
-	//static String date = "2014_09_04";
-	static String date = "base";
+	static String date = "2014_09_04";
+	//static String date = "base";
 	
 	static ActivityFacilitiesFactoryImpl facFac = new ActivityFacilitiesFactoryImpl();
 	static NetworkRoute networkRoute;
@@ -113,20 +113,24 @@ public class RunMatsim {
 	public static MySwissRailRaptor raptor;
 
 	//Needs to be implemented.
-	private static HashSet<String> ptSubModes = new HashSet<String>(Arrays.asList("train","bus","metro","train"));
+	private static HashSet<String> ptSubModes = 
+			new HashSet<String>(Arrays.asList("train","bus","metro","train","S-train","local-train"));
 
-	private static double waitTimeUtility = -1.3;
-	private static double trainTimeUtility = -1.;
+	private static double waitTimeUtility = -1.6;
+	private static double trainTimeUtility = -1.1;
 	private static double trainDistanceUtility = 0.;
-	// Local trains even?
-	// Local trains even?
+	private static double sTrainTimeUtility = -0.9;
+	private static double sTrainDistanceUtility = 0.;
+	private static double localTrainTimeUtility = sTrainTimeUtility;
+	private static double localTrainDistanceUtility = sTrainDistanceUtility;
 	private static double busTimeUtility = -1.;
 	private static double busDistanceUtility = 0.;
-	private static double metroTimeUtility = -1.;
+	private static double metroTimeUtility = -0.85;
 	private static double metroDistanceUtility = 0.;
-	private static double walkTimeUtility = -1.6;
+	private static double walkTimeUtility = -1.3;
 	private static double walkDistanceUtility = 0.;
 	private static final double maxBeelineTransferWalk = 600.; // Furthest walk between to _transfer_ stations [m]
+	private static final double transferPenalty = -4./60;
 
 
 
@@ -200,6 +204,12 @@ public class RunMatsim {
 			case "metro":
 				params.setMarginalUtilityOfTraveling(metroTimeUtility);
 				params.setMarginalUtilityOfDistance(metroDistanceUtility);
+			case "S-train":
+				params.setMarginalUtilityOfTraveling(sTrainTimeUtility);
+				params.setMarginalUtilityOfDistance(sTrainDistanceUtility);
+			case "local-train":
+				params.setMarginalUtilityOfTraveling(localTrainTimeUtility);
+				params.setMarginalUtilityOfDistance(localTrainDistanceUtility);
 			case TransportMode.transit_walk:
 				params.setMarginalUtilityOfTraveling(walkTimeUtility);
 				params.setMarginalUtilityOfDistance(walkDistanceUtility);
@@ -212,7 +222,7 @@ public class RunMatsim {
 			config.planCalcScore().addModeParams(params);
 		}
 		config.planCalcScore().setMarginalUtlOfWaitingPt_utils_hr(waitTimeUtility);
-
+		config.planCalcScore().setUtilityOfLineSwitch(transferPenalty);
 
 
 
@@ -450,7 +460,7 @@ public class RunMatsim {
 					System.out.println("  - Station: " + station);
 					System.out.println("  - Vehicle: " + vehicle);
 					System.out.println("  - Walk: " + walk);
-					System.out.print("\n\n");
+					System.out.print("\n");
 				}
 
 				if(stopwatch  == (6*3600) || stopwatch == (8*3600) || stopwatch == endTime){

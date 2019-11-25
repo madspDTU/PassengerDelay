@@ -399,11 +399,21 @@ public class CreateBaseTransitSchedule {
 			double departure = -1;
 			double offset = -1;
 			Id<TransitLine> prevLineId = null;
+			String subMode = "";
 			while((readLine = br.readLine()) != null){
 				String[] splitLine = readLine.split(";");
 				Id<TransitLine> lineId = Id.create(splitLine[0], TransitLine.class);
 				double time = Math.round(Double.valueOf(splitLine[1]));
-				routeId = Id.create(splitLine[2], TransitRoute.class);
+				int trainNum = Integer.parseInt(splitLine[2]);
+				
+				if(trainNum >= 10000 && trainNum < 80000){
+					subMode = "s-train";
+				} else if(trainNum >= 100000 && trainNum < 200000){
+					subMode = "local-train";
+				} else {
+					subMode = "train";
+				}
+				routeId = Id.create(trainNum, TransitRoute.class);		
 				TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[3], TransitStopFacility.class));
 				String moveType = splitLine[4];
 				if(!schedule.getTransitLines().containsKey(lineId)){
@@ -416,7 +426,7 @@ public class CreateBaseTransitSchedule {
 
 				if(!prevRouteId.equals(routeId)){
 					if(!stops.isEmpty()){
-						TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "train");
+						TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, subMode);
 						route.addDeparture(schedule.getFactory().createDeparture( 
 								Id.create(prevRouteId.toString(), Departure.class), offset));
 						line.addRoute(route);
@@ -451,7 +461,7 @@ public class CreateBaseTransitSchedule {
 
 			//adding the last departure of the train schedule...
 			if(!stops.isEmpty()){
-				TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "train");
+				TransitRoute route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, subMode);
 				route.addDeparture(schedule.getFactory().createDeparture( 
 						Id.create(prevRouteId.toString(), Departure.class), offset));
 				line.addRoute(route);
