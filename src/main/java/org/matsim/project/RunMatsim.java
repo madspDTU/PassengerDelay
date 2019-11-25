@@ -420,8 +420,8 @@ public class RunMatsim {
 
 				Date dateObject = new Date();
 				SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
-				String date = "___" + formatter.format(dateObject) + "___";
-				System.out.println(date +"\nStopwatch is now " + intToTimeString(stopwatch));
+				String dateString = "___" + formatter.format(dateObject) + "___";
+				System.out.println(dateString +"\nStopwatch is now " + intToTimeString(stopwatch));
 				System.out.print("- Graph building times: ");
 
 				if(runParallelThreads){
@@ -496,7 +496,7 @@ public class RunMatsim {
 								f.delete();
 							}
 						}
-						FileWriter writer = new FileWriter(new File("/work1/s103232/PassengerDelay/Output/Events_" +
+						FileWriter writer = new FileWriter(new File("/work1/s103232/PassengerDelay/Output/Events_" + 
 								date + hourString + ".csv"));
 						writer.append("AgentId;TripId;Type;Time;FromX;FromY;FromString;ToX;ToY;ToString;How;DepartureId\n");
 						for(PassengerDelayPerson person :passengerDelayPersons){
