@@ -73,6 +73,14 @@ public class MySwissRailRaptor implements TransitRouter {
         		egressStops, parameters, onBoard, routeId, stopId);
         RaptorRoute directWalk = createDirectWalk(fromFacility, toFacility, departureTime, person, parameters);
 
+        System.out.println("foundRoute: " + foundRoute.getTotalCosts());
+        if(Double.isInfinite(foundRoute.getTotalCosts())) {
+        	for(RoutePart part : foundRoute.getParts()) {
+        		System.out.println(part.mode);
+        	}
+        }
+        System.out.println("walkRoute: " + directWalk.getTotalCosts());
+        
         /*
 		 * The pt trip is compared with a direct walk from trip origin to trip destination. This is useful for backwards
 		 * compatibility, but leads to many trips with only a single "transit_walk" leg which are then considered pt
@@ -243,7 +251,6 @@ public class MySwissRailRaptor implements TransitRouter {
         double walkCost_per_s = -parameters.getMarginalUtilityOfTravelTime_utl_s(TransportMode.transit_walk);
         double walkCost = walkTime * walkCost_per_s;
         double beelineDistanceFactor = this.data.config.getBeelineWalkDistanceFactor();
-
         RaptorRoute route = new RaptorRoute(fromFacility, toFacility, walkCost);
         route.addNonPt(null, null, departureTime, walkTime, beelineDistance * beelineDistanceFactor, TransportMode.transit_walk);
         return route;
