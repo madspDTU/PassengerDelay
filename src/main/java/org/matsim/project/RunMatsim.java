@@ -31,9 +31,6 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
@@ -43,7 +40,6 @@ import org.matsim.api.core.v01.network.Node;
 import org.matsim.api.core.v01.population.Activity;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Plan;
-import org.matsim.api.core.v01.population.Population;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.PlanCalcScoreConfigGroup.ModeParams;
@@ -78,10 +74,7 @@ import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptor;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorModule;
 
-/**
- * @author nagel
- *
- */
+
 public class RunMatsim {
 
 	// static String INPUT_FOLDER = "c:/workAtHome/PassengerDelay";
@@ -115,16 +108,15 @@ public class RunMatsim {
 	private static final double transferBufferTime = 0.;
 	public static final boolean elaborateLogging = false;
 	public static final boolean aggregateLogging = true;
-	public static final boolean runParallelThreads = true;
 
 	public static MySwissRailRaptor raptor;
 
 	//Needs to be implemented.
-	private static final String MODE_TRAIN = "train";
-	private static final String MODE_BUS = "bus";
-	private static final String MODE_METRO = "metro";
-	private static final String MODE_S_TRAIN = "S-train";
-	private static final String MODE_LOCAL_TRAIN = "local-train";
+	static final String MODE_TRAIN = "train";
+	static final String MODE_BUS = "bus";
+	static final String MODE_METRO = "metro";
+	static final String MODE_S_TRAIN = "S-train";
+	static final String MODE_LOCAL_TRAIN = "local-train";
 
 	private static HashSet<String> ptSubModes = 
 			new HashSet<String>(Arrays.asList(MODE_TRAIN, MODE_BUS, MODE_METRO, MODE_S_TRAIN, MODE_LOCAL_TRAIN));
@@ -153,7 +145,7 @@ public class RunMatsim {
 	final static int TIMESTEP = 150;
 	private final static int DEPMAP_MEMORY = 3600*2;
 
-	static boolean runSanityTests = true;
+	static boolean runSanityTests = false;
 
 
 
@@ -168,8 +160,8 @@ public class RunMatsim {
 			CreateBaseTransitSchedule.init();
 		}
 		//Config config = ConfigUtils.loadConfig("/zhome/81/e/64390/git/matsim-example-project/input/1percent/config_eventPTRouter.xml");
-		Config config = ConfigUtils.createConfig();
-		Config nextConfig = ConfigUtils.createConfig();
+		Config config = createConfig();
+		Config nextConfig = createConfig();
 
 
 
@@ -190,70 +182,12 @@ public class RunMatsim {
 		if(!runSanityTests) {
 			config.network().setInputFile(INPUT_FOLDER + "/OtherInput/network.xml.gz");
 			config.transit().setTransitScheduleFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule_InfrastructureOnly.xml.gz");
-			if(!runParallelThreads){
-				config.transit().setTransitScheduleFile("/zhome/81/e/64390/git/matsim-example-project/input/full/schedule_CPH.xml.gz");
-			}
 			nextConfig.network().setInputFile(INPUT_FOLDER + "/OtherInput/network.xml.gz");
 			nextConfig.transit().setTransitScheduleFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule_InfrastructureOnly.xml.gz");
-			if(!runParallelThreads){
-				nextConfig.transit().setTransitScheduleFile("/zhome/81/e/64390/git/matsim-example-project/input/full/schedule_CPH.xml.gz");
-			}
 		}
 
 
 		// Google Maps of empirisk viden
-		config.transitRouter().setMaxBeelineWalkConnectionDistance(maxBeelineTransferWalk );
-		config.transitRouter().setSearchRadius(3000.);  // Andersson 2013 (evt 2016)
-		config.transitRouter().setAdditionalTransferTime(transferBufferTime);
-		config.transitRouter().setExtensionRadius(5000.);
-		config.transitRouter().setDirectWalkFactor(1.);
-		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setBeelineDistanceFactor(
-				1.);
-		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setTeleportedModeSpeed(
-				1.);
-		
-		ModeParams walkParams = new ModeParams(TransportMode.walk);
-		walkParams.setMarginalUtilityOfDistance(walkDistanceUtility);
-		walkParams.setMarginalUtilityOfTraveling(walkTimeUtility);
-		config.planCalcScore().addModeParams(walkParams);
-		config.planCalcScore().setPerforming_utils_hr(0);
-		config.transit().setTransitModes(ptSubModes);
-		for(String mode : ptSubModes){
-			ModeParams params = new ModeParams(mode);
-			switch(mode){
-			case MODE_TRAIN: 
-				params.setMarginalUtilityOfTraveling(trainTimeUtility);
-				params.setMarginalUtilityOfDistance(trainDistanceUtility);
-				break;
-			case MODE_BUS:
-				params.setMarginalUtilityOfTraveling(busTimeUtility);
-				params.setMarginalUtilityOfDistance(busDistanceUtility);
-				break;
-			case MODE_METRO:
-				params.setMarginalUtilityOfTraveling(metroTimeUtility);
-				params.setMarginalUtilityOfDistance(metroDistanceUtility);
-				break;
-			case MODE_S_TRAIN:
-				params.setMarginalUtilityOfTraveling(sTrainTimeUtility);
-				params.setMarginalUtilityOfDistance(sTrainDistanceUtility);
-				break;
-			case MODE_LOCAL_TRAIN:
-				params.setMarginalUtilityOfTraveling(localTrainTimeUtility);
-				params.setMarginalUtilityOfDistance(localTrainDistanceUtility);
-				break;
-			default:
-				break;
-			}
-			config.planCalcScore().addModeParams(params);
-		}
-		config.planCalcScore().setMarginalUtlOfWaitingPt_utils_hr(waitTimeUtility);
-		config.planCalcScore().setUtilityOfLineSwitch(transferPenalty);
-
-
-
-		config.travelTimeCalculator().setTraveltimeBinSize(TIMESTEP);
-		config.qsim().setStartTime(0);
-		config.qsim().setEndTime(endTime);
 
 
 
@@ -278,11 +212,6 @@ public class RunMatsim {
 			sanityTests(scenario, staticConfig);
 			System.exit(-1);
 		}
-
-
-		//	SwissRailRaptorFactory fac = new SwissRailRaptorFactory(scenario.getTransitSchedule(), config, scenario.getNetwork(), arg3, arg4, 
-		//			null, config.plans(), fakePopulation, arg7);
-		//	SwissRailRaptor raptor = fac.get();
 
 
 		PopulationReader populationReader = new PopulationReader(scenario);
@@ -328,64 +257,7 @@ public class RunMatsim {
 
 		System.out.println("Using " + cores + " cores");	
 		if(date.equals("base")){
-
-
-			CreateBaseTransitSchedule.clearTransitSchedule(scenario);
-			nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/BaseSchedule.xml.gz");
-			nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz");
-			nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz");
-			createDepMaps(RunMatsim.startTime, nextScenario.getTransitSchedule().getTransitLines().values());
-
-			long backThen = System.currentTimeMillis();
-
-			System.out.print("- Graph building times: ");
-
-			BaseJob[] baseJobs = new BaseJob[cores];
-			for(int j = 0; j < cores; j++){
-				baseJobs[j] = new BaseJob(startTime, persons[j], scenarios[j]);		
-			}
-			Thread[] threads = new Thread[cores];
-			for(int j = 0; j < cores; j++){
-				threads[j] = new Thread(baseJobs[j]);
-			}
-			for(int j = 0; j < cores; j++){
-				threads[j].start();
-			}
-			for(int j = 0; j < cores; j++){
-				try {
-					threads[j].join();
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-
-
-			long now = System.currentTimeMillis(); 
-			long duration = now - backThen;
-			System.out.println("\n - Finished simulating after: " + duration/1000 + "s. (s/r = " + duration/1000./TIMESTEP +")"  );
-
-
-
-			FileWriter writer;
-			try {
-				System.out.println("Beginning to write base results...");
-				writer = new FileWriter(new File("/work1/s103232/PassengerDelay/Output/Events_base.csv"));
-				writer.append("AgentId;TripId;Type;Time;FromX;FromY;FromString;ToX;ToY;ToString;How;DepartureId\n");
-				for(PassengerDelayPerson person :passengerDelayPersons){
-					writer.append(person.eventsToString());
-				}
-				writer.flush();
-				writer.close();
-				System.out.println("Finished writing base results...");
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
+			performingBaseJob(scenario, passengerDelayPersons, persons, scenarios);
 		} else {
 
 			for(int stopwatch = startTime; stopwatch <= endTime; stopwatch += TIMESTEP ){
@@ -421,38 +293,32 @@ public class RunMatsim {
 				Date dateObject = new Date();
 				SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
 				String dateString = "___" + formatter.format(dateObject) + "___";
-				System.out.println(dateString +"\nStopwatch is now " + intToTimeString(stopwatch));
+				System.out.println("___Stopwatch is now " + intToTimeString(stopwatch) + "___  (reported at " + dateString + ")");
 				System.out.print("- Graph building times: ");
 
-				if(runParallelThreads){
-					AdvanceJob[] advanceJobs = new AdvanceJob[cores];
-					for(int j = 0; j < cores; j++){
-						advanceJobs[j] = new AdvanceJob(stopwatch, persons[j], scenarios[j]);		
-					}
-					Thread[] threads = new Thread[cores];
-					for(int j = 0; j < cores; j++){
-						threads[j] = new Thread(advanceJobs[j]);
-					}
-					for(int j = 0; j < cores; j++){
-						threads[j].start();
-					}
+				AdvanceJob[] advanceJobs = new AdvanceJob[cores];
+				for(int j = 0; j < cores; j++){
+					advanceJobs[j] = new AdvanceJob(stopwatch, persons[j], scenarios[j]);		
+				}
+				Thread[] threads = new Thread[cores];
+				for(int j = 0; j < cores; j++){
+					threads[j] = new Thread(advanceJobs[j]);
+				}
+				for(int j = 0; j < cores; j++){
+					threads[j].start();
+				}
 
-
-					for(int j = 0; j < cores; j++){
-						try {
-							threads[j].join();
-						} catch (InterruptedException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					}
-
-				} else {
-					for(PassengerDelayPerson person : passengerDelayPersons){
-						person.setStopwatch(stopwatch);
-						person.advance();
+				for(int j = 0; j < cores; j++){
+					try {
+						threads[j].join();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
 					}
 				}
+				advanceJobs = null;
+				threads = null;
+
+
 
 				long now = System.currentTimeMillis(); 
 				long duration = now - backThen;
@@ -515,6 +381,72 @@ public class RunMatsim {
 
 
 
+	}
+
+
+
+
+
+
+
+	private static void performingBaseJob(Scenario scenario, PassengerDelayPerson[] passengerDelayPersons,
+			LinkedList<PassengerDelayPerson>[] persons, Scenario[] scenarios) {
+		Scenario nextScenario;
+		CreateBaseTransitSchedule.clearTransitSchedule(scenario);
+		nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
+				RunMatsim.INPUT_FOLDER + "/BaseSchedules/BaseSchedule.xml.gz");
+		nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
+				RunMatsim.INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz");
+		nextScenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
+				RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz");
+		createDepMaps(RunMatsim.startTime, nextScenario.getTransitSchedule().getTransitLines().values());
+
+		long backThen = System.currentTimeMillis();
+
+		System.out.print("- Graph building times: ");
+
+		BaseJob[] baseJobs = new BaseJob[cores];
+		for(int j = 0; j < cores; j++){
+			baseJobs[j] = new BaseJob(startTime, persons[j], scenarios[j]);		
+		}
+		Thread[] threads = new Thread[cores];
+		for(int j = 0; j < cores; j++){
+			threads[j] = new Thread(baseJobs[j]);
+		}
+		for(int j = 0; j < cores; j++){
+			threads[j].start();
+		}
+		for(int j = 0; j < cores; j++){
+			try {
+				threads[j].join();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+
+		long now = System.currentTimeMillis(); 
+		long duration = now - backThen;
+		System.out.println("\n - Finished simulating after: " + duration/1000 + "s. (s/r = " + duration/1000./TIMESTEP +")"  );
+
+
+
+		FileWriter writer;
+		try {
+			System.out.println("Beginning to write base results...");
+			writer = new FileWriter(new File("/work1/s103232/PassengerDelay/Output/Events_base.csv"));
+			writer.append("AgentId;TripId;Type;Time;FromX;FromY;FromString;ToX;ToY;ToString;How;DepartureId\n");
+			for(PassengerDelayPerson person :passengerDelayPersons){
+				writer.append(person.eventsToString());
+			}
+			writer.flush();
+			writer.close();
+			System.out.println("Finished writing base results...");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 
@@ -825,8 +757,9 @@ public class RunMatsim {
 
 		//750. takes 56, whereas 600 takes 39.. This parameter is probably the one that influences computation time the most
 		// 600 is 10 minutes walk. Seems legit.
-		config.transitRouter().setMaxBeelineWalkConnectionDistance(maxBeelineTransferWalk); 
-		config.transitRouter().setSearchRadius(3000.);
+
+		config.transitRouter().setMaxBeelineWalkConnectionDistance(maxBeelineTransferWalk );
+		config.transitRouter().setSearchRadius(3000.);  // Andersson 2013 (evt 2016)
 		config.transitRouter().setAdditionalTransferTime(transferBufferTime);
 		config.transitRouter().setExtensionRadius(5000.);
 		config.transitRouter().setDirectWalkFactor(1.);
@@ -834,6 +767,50 @@ public class RunMatsim {
 				1.);
 		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setTeleportedModeSpeed(
 				1.);
+
+		ModeParams walkParams = new ModeParams(TransportMode.walk);
+		walkParams.setMarginalUtilityOfDistance(walkDistanceUtility);
+		walkParams.setMarginalUtilityOfTraveling(walkTimeUtility);
+		config.planCalcScore().addModeParams(walkParams);
+		config.planCalcScore().setPerforming_utils_hr(0);
+		config.transit().setTransitModes(ptSubModes);
+		for(String mode : ptSubModes){
+			ModeParams params = new ModeParams(mode);
+			switch(mode){
+			case MODE_TRAIN: 
+				params.setMarginalUtilityOfTraveling(trainTimeUtility);
+				params.setMarginalUtilityOfDistance(trainDistanceUtility);
+				break;
+			case MODE_BUS:
+				params.setMarginalUtilityOfTraveling(busTimeUtility);
+				params.setMarginalUtilityOfDistance(busDistanceUtility);
+				break;
+			case MODE_METRO:
+				params.setMarginalUtilityOfTraveling(metroTimeUtility);
+				params.setMarginalUtilityOfDistance(metroDistanceUtility);
+				break;
+			case MODE_S_TRAIN:
+				params.setMarginalUtilityOfTraveling(sTrainTimeUtility);
+				params.setMarginalUtilityOfDistance(sTrainDistanceUtility);
+				break;
+			case MODE_LOCAL_TRAIN:
+				params.setMarginalUtilityOfTraveling(localTrainTimeUtility);
+				params.setMarginalUtilityOfDistance(localTrainDistanceUtility);
+				break;
+			default:
+				break;
+			}
+			config.planCalcScore().addModeParams(params);
+		}
+		config.planCalcScore().setMarginalUtlOfWaitingPt_utils_hr(waitTimeUtility);
+		config.planCalcScore().setUtilityOfLineSwitch(transferPenalty);
+
+
+
+		config.travelTimeCalculator().setTraveltimeBinSize(TIMESTEP);
+		config.qsim().setStartTime(0);
+		config.qsim().setEndTime(endTime);
+
 
 		return config;
 	}

@@ -56,7 +56,7 @@ public class BaseJob  implements Runnable {
 
 			RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(scenario.getPopulation(), iae, routingModuleMap);
 
-			RaptorStaticConfig staticConfig = createRaptorStaticConfig(config);
+			RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
 
 			this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
 			scenario = CreateBaseTransitSchedule.addTrainSchedule(scenario, 
@@ -107,20 +107,5 @@ public class BaseJob  implements Runnable {
 		return buildDuration;
 	}
 
-	private RaptorStaticConfig createRaptorStaticConfig(Config config) {
-		RaptorStaticConfig staticConfig = new RaptorStaticConfig();
-		staticConfig.setBeelineWalkConnectionDistance(
-				config.transitRouter().getMaxBeelineWalkConnectionDistance());
-		staticConfig.setBeelineWalkDistanceFactor(
-				config.transitRouter().getDirectWalkFactor());
-		staticConfig.setBeelineWalkSpeed(
-				config.plansCalcRoute().getOrCreateModeRoutingParams(
-						TransportMode.walk).getTeleportedModeSpeed());
-		staticConfig.setMinimalTransferTime(
-				config.transitRouter().getAdditionalTransferTime());
-		staticConfig.setOptimization(RaptorOptimization.OneToOneRouting);
-		staticConfig.setUseModeMappingForPassengers(false);
-		return staticConfig;
-	}
 
 }

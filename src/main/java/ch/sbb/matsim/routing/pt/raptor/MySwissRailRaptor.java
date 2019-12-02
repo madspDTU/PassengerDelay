@@ -72,15 +72,7 @@ public class MySwissRailRaptor implements TransitRouter {
         RaptorRoute foundRoute = this.raptor.calcLeastCostRoute(departureTime, fromFacility, toFacility, accessStops,
         		egressStops, parameters, onBoard, routeId, stopId);
         RaptorRoute directWalk = createDirectWalk(fromFacility, toFacility, departureTime, person, parameters);
-
-        System.out.println("foundRoute: " + foundRoute.getTotalCosts());
-        if(Double.isInfinite(foundRoute.getTotalCosts())) {
-        	for(RoutePart part : foundRoute.getParts()) {
-        		System.out.println(part.mode);
-        	}
-        }
-        System.out.println("walkRoute: " + directWalk.getTotalCosts());
-        
+  
         /*
 		 * The pt trip is compared with a direct walk from trip origin to trip destination. This is useful for backwards
 		 * compatibility, but leads to many trips with only a single "transit_walk" leg which are then considered pt

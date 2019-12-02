@@ -84,6 +84,8 @@ public class AdvanceJob  implements Runnable {
 				person.setRaptor(raptor);
 				person.advance();
 			}
+			raptor = null;
+			data = null;
 			long backNow = System.currentTimeMillis();
 			fullDuration = (backNow - backThen)/1000;
 			

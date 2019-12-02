@@ -203,7 +203,7 @@ public class CreateBaseTransitSchedule {
 			stops.add(transitRouteStop);
 		}
 		TransitRoute route = newFac.createTransitRoute(Id.create("M1_VAN_VEA",TransitRoute.class),
-				networkRoute, stops, "metro");
+				networkRoute, stops, RunMatsim.MODE_METRO);
 		for (int j = 0; j < frequencies.length; j++) {
 			for (int k = breaks[j] * 3600; k < breaks[j + 1] * 3600; k += frequencies[j] * 60) {
 				int time = k;
@@ -225,7 +225,7 @@ public class CreateBaseTransitSchedule {
 			stops.add(transitRouteStop);
 		}
 		route = newFac.createTransitRoute(
-				Id.create("M1_VEA_VAN",TransitRoute.class),networkRoute, stops, "metro");
+				Id.create("M1_VEA_VAN",TransitRoute.class),networkRoute, stops, RunMatsim.MODE_METRO);
 		for (int j = 0; j < frequencies.length; j++) {
 			for (int k = breaks[j] * 3600; k < breaks[j + 1] * 3600; k += frequencies[j] * 60) {
 				int time = k + frequencies[j]/2*60 + 60;
@@ -253,7 +253,7 @@ public class CreateBaseTransitSchedule {
 			stops.add(transitRouteStop);
 		}
 		route = newFac.createTransitRoute(Id.create("M2_VAN_LUFT",TransitRoute.class),
-				networkRoute, stops, "metro");
+				networkRoute, stops, RunMatsim.MODE_METRO);
 		for (int j = 0; j < frequencies.length; j++) {
 			for (int k = breaks[j] * 3600; k < breaks[j + 1] * 3600; k += frequencies[j] * 60) {
 				int time = k + frequencies[j]/2*60;
@@ -275,7 +275,7 @@ public class CreateBaseTransitSchedule {
 			stops.add(transitRouteStop);
 		}
 		route = newFac.createTransitRoute(
-				Id.create("M2_LUFT_VAN",TransitRoute.class),networkRoute, stops, "metro");
+				Id.create("M2_LUFT_VAN",TransitRoute.class),networkRoute, stops, RunMatsim.MODE_METRO);
 
 		stops.clear();
 		for (int j = 0; j < frequencies.length; j++) {
@@ -330,7 +330,7 @@ public class CreateBaseTransitSchedule {
 						TransitRoute route;
 						String routeString = createRouteString(line.getId(), stops);
 						if(!routeMap.containsKey(routeString)){
-							route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, "bus");	
+							route = scenario.getTransitSchedule().getFactory().createTransitRoute(prevRouteId,networkRoute,stops, RunMatsim.MODE_BUS);	
 							routeMap.put(routeString, route);
 							line.addRoute(route);
 						} else {
@@ -406,12 +406,12 @@ public class CreateBaseTransitSchedule {
 				double time = Math.round(Double.valueOf(splitLine[1]));
 				int trainNum = Integer.parseInt(splitLine[2]);
 				
-				if(trainNum >= 10000 && trainNum < 80000){
-					subMode = "s-train";
+				if(trainNum <= 10000 && trainNum < 80000){
+					subMode = RunMatsim.MODE_S_TRAIN;
 				} else if(trainNum >= 100000 && trainNum < 200000){
-					subMode = "local-train";
+					subMode = RunMatsim.MODE_LOCAL_TRAIN;
 				} else {
-					subMode = "train";
+					subMode = RunMatsim.MODE_TRAIN;
 				}
 				routeId = Id.create(trainNum, TransitRoute.class);		
 				TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[3], TransitStopFacility.class));

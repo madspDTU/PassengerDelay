@@ -616,7 +616,7 @@ public class MySwissRailRaptorCore {
 				double firstDepartureTime = Double.isNaN(boardingPE.firstDepartureTime) ? currentAgentBoardingTime : boardingPE.firstDepartureTime;
 
 				double marginalUtilityOfTravelTime_utl_s = parameters.getMarginalUtilityOfTravelTime_utl_s(boardingPE.toRouteStop.mode);
-		
+			
 				for (int toRouteStopIndex = firstRouteStopIndex + 1; toRouteStopIndex < route.indexFirstRouteStop + route.countRouteStops; toRouteStopIndex++) {
 					RRouteStop toRouteStop = this.data.routeStops[toRouteStopIndex];
 					double arrivalTime = currentDepartureTime + toRouteStop.arrivalOffset;
