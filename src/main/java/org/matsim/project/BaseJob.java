@@ -29,11 +29,13 @@ public class BaseJob  implements Runnable {
 	private Scenario scenario;
 	private long buildDuration;
 	private long fullDuration;
+	private String date;
 
-	BaseJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario){
+	BaseJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario, String date){
 		this.persons = persons;
 		this.stopwatch = stopwatch;
 		this.scenario = scenario;
+		this.date = date;
 	}
 
 
@@ -59,15 +61,7 @@ public class BaseJob  implements Runnable {
 			RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
 
 			this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
-			scenario = CreateBaseTransitSchedule.addTrainSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv");
-			scenario = CreateBaseTransitSchedule.addBusSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv");
-			scenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz");
-			scenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz");
-			
+			this.scenario = CreateBaseTransitSchedule.addBaseSchedule(scenario, date);
 			
 			SwissRailRaptorData data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig ,
 					scenario.getNetwork());
@@ -77,12 +71,20 @@ public class BaseJob  implements Runnable {
 			System.out.print( buildDuration + "s ");
 			
 			MySwissRailRaptor raptor = new MySwissRailRaptor(data, arg3, arg4, stopFinder);
-			
-			
+			int counter = 0;
 			for(PassengerDelayPerson person : persons){
 				person.setStopwatch(stopwatch);
 				person.setRaptor(raptor);
-				person.createEntireDayEvents();
+				if(RunMatsim.adaptivenessType == RunMatsim.AdaptivenessType.RIGID){
+					person.createAllRoutesOfDay();
+				} else {
+					person.createEntireDayEvents();
+
+				}
+				counter++;
+				if(counter % 5000 == 0){
+					System.out.println(counter + " persons processed by this thread");
+				}
 			}
 			long backNow = System.currentTimeMillis();
 			fullDuration = (backNow - backThen)/1000;

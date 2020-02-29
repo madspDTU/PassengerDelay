@@ -39,58 +39,54 @@ public class AdvanceJob  implements Runnable {
 	public void run() {
 		try{
 			long backThen = System.currentTimeMillis();
-			
-		//	System.out.println("Free memory before: " +
-		//			Runtime.getRuntime().freeMemory() /1000000000.);
-			Config config = this.scenario.getConfig();
-		
 
-			RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
-			
-			RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
+			//	System.out.println("Free memory before: " +
+			//			Runtime.getRuntime().freeMemory() /1000000000.);
 
-			RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
-			Map<String, RoutingModule> routingModuleMap = new HashMap<String, RoutingModule>();
-
-			RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(scenario.getPopulation(), iae, routingModuleMap);
-
-			RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
-
-			this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
-			scenario = CreateBaseTransitSchedule.addTrainSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + RunMatsim.date + "/DisaggregateSchedule_" + 
-							RunMatsim.date + "_" + stopwatch + ".csv");
-			scenario = CreateBaseTransitSchedule.addBusSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/Disaggregate/Bus/" + RunMatsim.date + "/DisaggregateBusSchedule_" + 
-							RunMatsim.date + "_" + stopwatch + ".csv");
-			scenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz", stopwatch);
-			scenario = CreateBaseTransitSchedule.addStaticSchedule(scenario, 
-					RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz", stopwatch);
+			SwissRailRaptorData data = null;
+			MySwissRailRaptor raptor = null;
+			if(RunMatsim.adaptivenessType != RunMatsim.AdaptivenessType.RIGID){
+				Config config = this.scenario.getConfig();
 
 
-			SwissRailRaptorData data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig ,
-					scenario.getNetwork());
+				RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
 
-			long backMiddle = System.currentTimeMillis();
-			buildDuration = (backMiddle - backThen)/1000;
-			System.out.print( buildDuration + "s ");
-			
-			MySwissRailRaptor raptor = new MySwissRailRaptor(data, arg3, arg4, stopFinder);
-			
-			
+				RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
+
+				RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
+				Map<String, RoutingModule> routingModuleMap = new HashMap<String, RoutingModule>();
+
+				RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(scenario.getPopulation(), iae, routingModuleMap);
+
+				RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
+
+				this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
+				this.scenario = CreateBaseTransitSchedule.addSchedule(scenario, RunMatsim.date, stopwatch);
+
+				data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig, scenario.getNetwork());
+
+				long backMiddle = System.currentTimeMillis();
+				buildDuration = (backMiddle - backThen)/1000;
+				System.out.print( buildDuration + "s ");
+
+				raptor = new MySwissRailRaptor(data, arg3, arg4, stopFinder);
+			}
+
+
 			for(PassengerDelayPerson person : persons){
 				person.setStopwatch(stopwatch);
-				person.setRaptor(raptor);
+				if(RunMatsim.adaptivenessType != RunMatsim.AdaptivenessType.RIGID){
+					person.setRaptor(raptor);
+				}
 				person.advance();
 			}
 			raptor = null;
 			data = null;
 			long backNow = System.currentTimeMillis();
 			fullDuration = (backNow - backThen)/1000;
-			
-	//		System.out.println("Free memory after " + (int) (backNow-backThen)/1000 + " seconds: " +
-	//				Runtime.getRuntime().freeMemory() / 1000000000.);
+
+			//		System.out.println("Free memory after " + (int) (backNow-backThen)/1000 + " seconds: " +
+			//				Runtime.getRuntime().freeMemory() / 1000000000.);
 		} catch(Exception e){
 			e.printStackTrace();
 			//	System.err.println("An advance job for person " + person.id + " did not terminate");
@@ -104,7 +100,7 @@ public class AdvanceJob  implements Runnable {
 	double getFullDuration(){
 		return fullDuration;
 	}
-	
+
 	double getBuildDuration(){
 		return buildDuration;
 	}

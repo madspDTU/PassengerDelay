@@ -8,7 +8,7 @@ import org.matsim.pt.transitSchedule.api.TransitStopFacility;
 public class PassengerDelayEvent {
 
 	enum EventType {
-		ACTIVITY_START, WALK_START, WAIT_START, BOARDING, UNBOARDING, SIMULATION_END  
+		ACTIVITY_START, WALK_START, WAIT_START, BOARDING, UNBOARDING, SIMULATION_END, PIS_NOTIFICATION  
 	}
 
 	EventType type;

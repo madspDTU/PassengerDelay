@@ -11,12 +11,12 @@ import org.matsim.pt.transitSchedule.api.TransitStopFacility;
 
 public class MyTransitRoute implements Route {
 	
-	private ExperimentalTransitRoute route;
+	private ExperimentalTransitRoute delegate;
 	private Id<Departure> departureId;
 	private double legDepartureTime;
 
 	public MyTransitRoute(ExperimentalTransitRoute route) {
-		this.route = route;
+		this.delegate = route;
 	}
 	
 	public void setDepartureId(Id<Departure> departureId){
@@ -36,82 +36,82 @@ public class MyTransitRoute implements Route {
 	}
 	
 	public ExperimentalTransitRoute getTransitRoute(){
-		return this.route;
+		return this.delegate;
 	}
 
 	@Override
 	public double getDistance() {
-		return route.getDistance();
+		return delegate.getDistance();
 	}
 
 	@Override
 	public void setDistance(double distance) {
-		route.setDistance(distance);
+		delegate.setDistance(distance);
 	}
 
 	@Override
 	public double getTravelTime() {
-		return route.getTravelTime();
+		return delegate.getTravelTime();
 	}
 
 	@Override
 	public void setTravelTime(double travelTime) {
-		route.setTravelTime(travelTime);
+		delegate.setTravelTime(travelTime);
 	}
 
 	@Override
 	public Id<Link> getStartLinkId() {
-		return route.getStartLinkId();
+		return delegate.getStartLinkId();
 	}
 
 	@Override
 	public Id<Link> getEndLinkId() {
-		return route.getEndLinkId();
+		return delegate.getEndLinkId();
 	}
 
 	@Override
 	public void setStartLinkId(Id<Link> linkId) {
-		route.setStartLinkId(linkId);
+		delegate.setStartLinkId(linkId);
 	}
 
 	@Override
 	public void setEndLinkId(Id<Link> linkId) {
-		route.setEndLinkId(linkId);
+		delegate.setEndLinkId(linkId);
 	}
 
 	@Override
 	public String getRouteDescription() {
-		return route.getRouteDescription();
+		return delegate.getRouteDescription();
 	}
 
 	@Override
 	public void setRouteDescription(String routeDescription) {
-		route.setRouteDescription(routeDescription);
+		delegate.setRouteDescription(routeDescription);
 	}
 
 	@Override
 	public String getRouteType() {
-		return route.getRouteType();
+		return delegate.getRouteType();
 	}
 
 	@Override
 	public Route clone() {
-		return route;
+		return delegate;
 	}
 	
 	public Id<TransitStopFacility> getAccessStopId(){
-		return route.getAccessStopId();
+		return delegate.getAccessStopId();
 	}
 	
 	public Id<TransitStopFacility> getEgressStopId(){
-		return route.getEgressStopId();
+		return delegate.getEgressStopId();
 	}
 	
 	public Id<TransitRoute> getRouteId(){
-		return route.getRouteId();
+		return delegate.getRouteId();
 	}
 	
 	public Id<TransitLine> getLineId(){
-		return route.getLineId();
+		return delegate.getLineId();
 	}
 }

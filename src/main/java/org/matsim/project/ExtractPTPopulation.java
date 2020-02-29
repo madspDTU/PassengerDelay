@@ -112,7 +112,7 @@ public class ExtractPTPopulation {
 		boolean firstIndexFound = false;
 		for(PlanElement pe : plan.getPlanElements()){
 			if(keptElement[i] && pe instanceof Activity){
-				double endTime = ((Activity) pe).getEndTime();
+				double endTime = ((Activity) pe).getEndTime().seconds();
 				if(!firstIndexFound && endTime >= beginningOfDay){ 
 					firstIndexFound = true;
 					firstIndexAfterThree = i;		
@@ -140,9 +140,9 @@ public class ExtractPTPopulation {
 						newPlan.getPlanElements().remove(newPlan.getPlanElements().size()-1);
 					} else {
 						Activity newActivity =  pf.createActivityFromCoord(activity.getType(), activity.getCoord());
-						newActivity.setEndTime(activity.getEndTime());
+						newActivity.setEndTime(activity.getEndTime().seconds());
 						if(i == plan.getPlanElements().size()-1 && firstIndexAfterThree > 0 &&
-								newActivity.getEndTime() > 24*3600){
+								newActivity.getEndTime().seconds() > 24*3600){
 							newActivity.setEndTime(24*3600);
 							//Will be followed by a Teleportation leg in the following.
 						}
@@ -169,7 +169,7 @@ public class ExtractPTPopulation {
 						newPlan.getPlanElements().remove(newPlan.getPlanElements().size()-1);		
 					} else {
 						Activity newActivity =  pf.createActivityFromCoord(activity.getType(), activity.getCoord());
-						newActivity.setEndTime(activity.getEndTime() + 24*3600);
+						newActivity.setEndTime(activity.getEndTime().seconds() + 24*3600);
 						newPlan.addActivity(newActivity);
 					}
 					prevActivityCoord = activity.getCoord();

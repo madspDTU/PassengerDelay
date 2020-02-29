@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
@@ -32,7 +34,6 @@ import org.matsim.pt.transitSchedule.api.TransitScheduleFactory;
 import org.matsim.pt.transitSchedule.api.TransitScheduleReader;
 import org.matsim.pt.transitSchedule.api.TransitScheduleWriter;
 import org.matsim.pt.transitSchedule.api.TransitStopFacility;
-import org.matsim.visum.VisumNetwork.Stop;
 
 
 public class CreateBaseTransitSchedule {
@@ -62,15 +63,6 @@ public class CreateBaseTransitSchedule {
 
 		networkRoute = (NetworkRoute) new LinkNetworkRouteFactory().createRoute(dummyLink.getId(), dummyLink.getId());
 
-		scenario = createTransitInfrastructure(scenario);
-		scenario = addBaseSchedule(scenario);
-
-		//		TransitScheduleWriter writer = new TransitScheduleWriter(scenario.getTransitSchedule());
-		//		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule.xml.gz");
-		//		scenario = clearTransitSchedule(scenario);
-		//		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/BaseSchedule_InfrastructureOnly.xml.gz");
-		//		NetworkWriter networkWriter = new NetworkWriter(scenario.getNetwork());
-		//		networkWriter.write(INPUT_FOLDER + "/OtherInput/network.xml.gz");
 	}
 
 	public static Scenario clearTransitSchedule(Scenario scenario) {
@@ -84,56 +76,50 @@ public class CreateBaseTransitSchedule {
 		return scenario;
 	}
 
-	private static Scenario addBaseSchedule(Scenario scenario) {
-		scenario = addTrainSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv");
-		scenario = addBusSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv");
-		createMetroSchedule(scenario);
-		createLocalTrainSchedule(scenario);
+	
+	public static Scenario addBaseSchedule(Scenario scenario, String date){
+		if(date.equals("base")){
+			scenario = addTrainSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/TrainSchedule.csv");
+			scenario = addBusSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/BusSchedule.csv");
+			scenario = addStaticSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml");
+			scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml");
+		} else {
+			scenario = addTrainSchedule(scenario,INPUT_FOLDER + "/Disaggregate/Train/" + date + "/AVLSchedule_" + date + ".csv");
+			scenario = addBusSchedule(scenario, INPUT_FOLDER + "/Disaggregate/Bus/" + date + "/AVLSchedule_" + date + ".csv");	
+			scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
+					"/MetroSchedule.xml");
+			scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
+					"/LocalTrainSchedule.xml");
+		}
 		return scenario;
 	}
 
-	private static void createLocalTrainSchedule(Scenario scenario) {
-		scenario = addTrainSchedule(scenario, INPUT_FOLDER + "/OtherInput/lokalbaner.csv");
-		Scenario newScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
-		HashSet<TransitStopFacility> stops = new HashSet<TransitStopFacility>();
-		for(TransitLine line : scenario.getTransitSchedule().getTransitLines().values()){
-			long departureNumber = -1;
-			boolean isLocalTrain = false;
-			for(TransitRoute route : line.getRoutes().values()){
-				for(Departure departure : route.getDepartures().values()){
-					departureNumber = Long.parseLong(String.valueOf(departure.getId()).split("X")[0]);
-					if(departureNumber > 100000 && departureNumber < 1000000){
-						isLocalTrain = true;
-					} else {
-						isLocalTrain = false;
-					}
-					break;
-				}
-				for(TransitRouteStop stop :route.getStops()){
-					stops.add(stop.getStopFacility());
-				}
-			}
-			if(isLocalTrain){
-				newScenario.getTransitSchedule().addTransitLine(line);
-			}
-		}
+	public static Scenario addSchedule(Scenario scenario, String date, int stopwatch) {
+		scenario = addTrainSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date + "/DisaggregateSchedule_" + 
+				date + "_" + stopwatch + ".csv");
+		scenario = addBusSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Bus/" + date + "/DisaggregateBusSchedule_" + 
+				date + "_" + stopwatch + ".csv");
+		scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
+				"/MetroSchedule.xml", stopwatch);
+		scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
+				"/LocalTrainSchedule.xml", stopwatch);
+		return scenario;
+	}
 
-		for(TransitStopFacility stop : stops){
-			newScenario.getTransitSchedule().addStopFacility(stop);
-		}
-
-		TransitScheduleWriter writer = new TransitScheduleWriter(newScenario.getTransitSchedule());
-		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml.gz");
+	public static void createAndWriteLocalTrainSchedule(Scenario scenario) {
+		scenario = addTrainSchedule(scenario, INPUT_FOLDER + "/OtherInput/lokalbaner_CorrectFormat.csv");
+		TransitScheduleWriter writer = new TransitScheduleWriter(scenario.getTransitSchedule());
+		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml");
 	}
 
 	public static Scenario addStaticSchedule(Scenario scenario, String inputFile, double stopwatch){
 		return addStaticSchedule(scenario,  inputFile, stopwatch - timeBuffer, stopwatch + maxTripTime);
 	}
-	
+
 	public static Scenario addStaticSchedule(Scenario scenario, String inputFile){
 		return addStaticSchedule(scenario,  inputFile, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
 	}
-	
+
 	private static Scenario addStaticSchedule(Scenario newScenario, String inputFile, double minTime, double maxTime){
 		TransitSchedule schedule = newScenario.getTransitSchedule();
 		Scenario importScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
@@ -168,7 +154,7 @@ public class CreateBaseTransitSchedule {
 		return newScenario;
 	}
 
-	public static void createMetroSchedule(Scenario scenario) {
+	public static void createAndWriteMetroSchedule(Scenario scenario) {
 
 		TransitSchedule oldSchedule = scenario.getTransitSchedule();
 		TransitSchedule newSchedule = ScenarioUtils.createScenario(ConfigUtils.createConfig()).getTransitSchedule();
@@ -290,7 +276,7 @@ public class CreateBaseTransitSchedule {
 		newSchedule.addTransitLine(line);
 
 		TransitScheduleWriter writer = new TransitScheduleWriter(newSchedule);
-		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml.gz");
+		writer.writeFile(INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml");
 	}
 
 	static Scenario addBusSchedule(Scenario scenario, String fileName) {
@@ -312,19 +298,43 @@ public class CreateBaseTransitSchedule {
 			while((readLine = br.readLine()) != null){
 				String[] splitLine = readLine.split(";");
 				Id<TransitLine> lineId = Id.create(splitLine[4], TransitLine.class);
-				routeId = Id.create(splitLine[0], TransitRoute.class);
+
+				//TODO Make a prettier fix for this, i.e. create base and fullday schedules with the 1310000 already subtracted.
+				long num = Long.parseLong(splitLine[0]);
+				if(splitLine[0].substring(0, 7).equals("1310000")){
+					num -=  1310000 * Math.pow(10,9);
+				}
+
+				routeId = Id.create(num, TransitRoute.class);
+
 				double arr = Math.round(Double.valueOf(splitLine[2]));
 				double dep = Math.round(Double.valueOf(splitLine[3]));
-				TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[1], TransitStopFacility.class));
+
+				TransitStopFacility stopFacility = null;
+				if(RunMatsim.stopToStopGroup.containsKey(splitLine[1])){
+					stopFacility = RunMatsim.facilities.get(RunMatsim.stopToStopGroup.get(splitLine[1]));
+				}
+				//	TransitStopFacility stopFacility = schedule.getFacilities().get(Id.create(splitLine[1], TransitStopFacility.class));
 				boolean isStopDuplicate = transitStopFacilityIds.contains(stopFacility.getId());
 				if(routeId != prevRouteId ||  isStopDuplicate){
 					// Split lines 
 					if(routeId == prevRouteId && isStopDuplicate){ // Happens in the middle somewhere
-						suffix+="X"; //All parts except the last will get k X's added.
-						prevRouteId = Id.create(prevRouteId.toString() + suffix, TransitRoute.class);
+						// Current stop group equal to previous stop group 
+						if(stops.get(stops.size()-1).getStopFacility().getId() == stopFacility.getId()){
+							TransitRouteStop prevStop = stops.get(stops.size()-1);
+							stops.remove(stops.size()-1);
+							TransitRouteStop stop = scenario.getTransitSchedule().getFactory().createTransitRouteStop(
+									prevStop.getStopFacility(), prevStop.getArrivalOffset(), dep-offset);
+							stops.add(stop);
+							continue;
+						} else {
+							suffix += "X"; //All parts except the last will get k X's added.
+							prevRouteId = Id.create(prevRouteId.toString() + suffix, TransitRoute.class);							
+						}
 					} else {
 						suffix = "";
 					}
+
 					transitStopFacilityIds.clear();
 					if(!stops.isEmpty()){
 						TransitRoute route;
@@ -348,13 +358,12 @@ public class CreateBaseTransitSchedule {
 						line = schedule.getTransitLines().get(lineId);
 					}
 				}
+
+
+
 				if(stopFacility != null){
-					if(arr < offset){
-						arr += 24*3600;
-					}
-					if(dep < offset){
-						dep += 24*3600;
-					}
+					arr = potentiallyAdjustByAFullDay(arr,offset);
+					dep = potentiallyAdjustByAFullDay(dep,offset);
 					TransitRouteStop stop = scenario.getTransitSchedule().getFactory().createTransitRouteStop(
 							stopFacility,arr-offset, dep-offset);
 					stops.add(stop);
@@ -375,6 +384,15 @@ public class CreateBaseTransitSchedule {
 		return scenario;
 	}
 
+
+	public static double potentiallyAdjustByAFullDay(double t, double ref) {
+		if(t < ref){
+			t += 24*3600;
+		} else if( t >= 24*3600 + ref){
+			t -= 24*3600;
+		}
+		return t;
+	}
 
 	private static String createRouteString(Id<TransitLine> lineId, List<TransitRouteStop> stops) {
 		String s = lineId.toString();
@@ -405,8 +423,8 @@ public class CreateBaseTransitSchedule {
 				Id<TransitLine> lineId = Id.create(splitLine[0], TransitLine.class);
 				double time = Math.round(Double.valueOf(splitLine[1]));
 				int trainNum = Integer.parseInt(splitLine[2]);
-				
-				if(trainNum <= 10000 && trainNum < 80000){
+
+				if(trainNum >= 10000 && trainNum < 80000){
 					subMode = RunMatsim.MODE_S_TRAIN;
 				} else if(trainNum >= 100000 && trainNum < 200000){
 					subMode = RunMatsim.MODE_LOCAL_TRAIN;
@@ -434,26 +452,28 @@ public class CreateBaseTransitSchedule {
 					}
 					offset = time;
 				}
-				if(moveType.equals("I")){
+
+				switch(moveType){
+				case "I":
 					arrival = time;
 					departure = arrival;
-				} else {
+					break;
+				case "U":
 					departure = time;
 					if(arrival == -1){
 						arrival = departure;
 					}
 					if(stopFacility != null){
-						if(arrival < offset){
-							arrival += 2400*3600;
-						}
-						if(departure < offset){
-							departure += 2400*3600;
-						}
+						arrival = potentiallyAdjustByAFullDay(arrival, offset);
+						departure = potentiallyAdjustByAFullDay(departure, offset);
 						TransitRouteStop stop = scenario.getTransitSchedule().getFactory().createTransitRouteStop(
 								stopFacility,arrival-offset, departure-offset);
 						stops.add(stop);
 					}
 					arrival = -1;
+					break;
+				default:  //if G
+					break;
 				}
 				prevLineId = lineId;
 				prevRouteId = routeId;
@@ -478,7 +498,7 @@ public class CreateBaseTransitSchedule {
 		TransitSchedule schedule = scenario.getTransitSchedule();
 
 		for(String inputFile : new String[]{INPUT_FOLDER + "/OtherInput/stations.csv",
-				INPUT_FOLDER + "/OtherInput/busStops.csv"}){
+				INPUT_FOLDER + "/OtherInput/NewStopGroups.csv"}){
 			BufferedReader br;
 			try {
 				br = new BufferedReader(new FileReader(inputFile));
