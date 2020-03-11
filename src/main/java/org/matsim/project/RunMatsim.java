@@ -30,6 +30,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -41,23 +42,28 @@ import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Node;
 import org.matsim.api.core.v01.population.Activity;
+import org.matsim.api.core.v01.population.Leg;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Plan;
 import org.matsim.api.core.v01.population.PopulationFactory;
 import org.matsim.api.core.v01.population.PopulationWriter;
+import org.matsim.api.core.v01.population.Route;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
+import org.matsim.core.config.ConfigWriter;
 import org.matsim.core.config.groups.PlanCalcScoreConfigGroup.ModeParams;
 import org.matsim.core.config.groups.PlansCalcRouteConfigGroup.ModeRoutingParams;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.gbl.Gbl;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.population.io.PopulationReader;
+import org.matsim.core.population.routes.GenericRouteImpl;
 import org.matsim.core.population.routes.LinkNetworkRouteFactory;
 import org.matsim.core.population.routes.NetworkRoute;
 import org.matsim.core.router.RoutingModule;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.facilities.ActivityFacilitiesFactoryImpl;
+import org.matsim.pt.routes.ExperimentalTransitRoute;
 import org.matsim.pt.transitSchedule.api.Departure;
 import org.matsim.pt.transitSchedule.api.TransitLine;
 import org.matsim.pt.transitSchedule.api.TransitRoute;
@@ -90,7 +96,7 @@ public class RunMatsim {
 
 	static ActivityFacilitiesFactoryImpl facFac = new ActivityFacilitiesFactoryImpl();
 	static NetworkRoute networkRoute;
-	static ConcurrentHashMap<Id<TransitStopFacility>, TransitStopFacility> facilities = new ConcurrentHashMap<Id<TransitStopFacility>, TransitStopFacility>();
+	public static ConcurrentHashMap<Id<TransitStopFacility>, TransitStopFacility> facilities = new ConcurrentHashMap<Id<TransitStopFacility>, TransitStopFacility>();
 	private static int cores = 1;
 	static ConcurrentHashMap<Integer, ConcurrentHashMap<Id<Departure>, Id<TransitRoute>>> dep2Route;
 	static ConcurrentHashMap<Integer, ConcurrentHashMap<Id<TransitRoute>, ConcurrentHashMap<Id<TransitStopFacility>, Double>>> route2StopArrival;
@@ -118,24 +124,24 @@ public class RunMatsim {
 	private static HashSet<String> ptSubModes = new HashSet<String>(Arrays.asList(MODE_TRAIN, MODE_BUS, MODE_METRO,
 			MODE_S_TRAIN, MODE_LOCAL_TRAIN));
 
-	private static double waitTimeUtility = -1.6;
-	private static double trainTimeUtility = -1.1;
-	private static double trainDistanceUtility = 0.;
-	private static double sTrainTimeUtility = -0.9;
-	private static double sTrainDistanceUtility = 0.;
-	private static double localTrainTimeUtility = sTrainTimeUtility;
-	private static double localTrainDistanceUtility = sTrainDistanceUtility;
-	private static double busTimeUtility = -1.;
-	private static double busDistanceUtility = 0.;
-	private static double metroTimeUtility = -0.85;
-	private static double metroDistanceUtility = 0.;
-	private static double walkTimeUtility = -1.3;
-	private static double walkDistanceUtility = 0.;
-	private static final double maxBeelineTransferWalk = 600.; // Furthest walk
+	static double waitTimeUtility = -1.6;
+	static double trainTimeUtility = -1.1;
+	static double trainDistanceUtility = 0.;
+	static double sTrainTimeUtility = -0.9;
+	static double sTrainDistanceUtility = 0.;
+	static double localTrainTimeUtility = sTrainTimeUtility;
+	static double localTrainDistanceUtility = sTrainDistanceUtility;
+	static double busTimeUtility = -1.;
+	static double busDistanceUtility = 0.;
+	static double metroTimeUtility = -0.85;
+	static double metroDistanceUtility = 0.;
+	public static double walkTimeUtility = -1.3;
+	static double walkDistanceUtility = 0.;
+	static final double maxBeelineTransferWalk = 600.; // Furthest walk
 	// between to
 	// _transfer_
 	// stations [m]
-	private static final double transferPenalty = -4. / 60;
+	static double transferPenalty = -4. / 60;
 
 	// Never used, except for transfering onto the current map in next timestep.
 
@@ -149,6 +155,10 @@ public class RunMatsim {
 	public static ConcurrentHashMap<Integer, ConcurrentHashMap<Id<Departure>, Id<TransitLine>>> dep2Line;
 
 	public static ConcurrentHashMap<String, Id<TransitStopFacility>> stopToStopGroup;
+	public static double walkBeelineDistanceFactor = 1.;
+	public static Double walkSpeed = 1.;
+	private static double searchRadius = 3600.; //according to / Andersson 2013 (evt 2016) (60 min walk)
+	private static double extensionRadius = 7200.;
 
 	public static enum AdaptivenessType {
 		RIGID, NONADAPTIVE, SEMIADAPTIVE, FULLADAPTIVE, PERFECT;
@@ -205,11 +215,7 @@ public class RunMatsim {
 		}
 
 		PopulationReader populationReader = new PopulationReader(scenario);
-		if(date.equals("base")){
-			populationReader.readFile("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH_BASE.xml.gz");
-		} else {
-			populationReader.readFile("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH.xml.gz");
-		}
+		populationReader.readFile("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH.xml.gz");
 
 		if (cores > scenario.getPopulation().getPersons().size()) {
 			cores = scenario.getPopulation().getPersons().size();
@@ -229,6 +235,10 @@ public class RunMatsim {
 			if (persons[r] == null) {
 				persons[r] = new LinkedList<PassengerDelayPerson>();
 			}
+			//			if(passengerDelayPersons[i].getId().toString().equals("848859_1_Person") || persons[r].size() < 5){
+			//				persons[r].addLast(passengerDelayPersons[i]);
+			//			}
+
 			persons[r].addLast(passengerDelayPersons[i]);
 
 			//			//To test with a small sample
@@ -236,6 +246,93 @@ public class RunMatsim {
 			//				break;
 			//			}
 		}
+
+
+		//TODO SMALL SCALE DIAGNOSTICS
+		boolean onlyRunSmallScaleDiagnostics = false;
+		if(onlyRunSmallScaleDiagnostics){
+
+
+			// Total travel time: 3689.0 when allowing all options.
+
+			double depTime = 70015.;
+			for(int k = 0; k <= 1; k++) {
+				if(k == 1) {
+					waitTimeUtility = -1;
+					trainTimeUtility = -1;
+					trainDistanceUtility = 0.;
+					trainTimeUtility = -1;
+					sTrainDistanceUtility = 0.;
+					localTrainTimeUtility = sTrainTimeUtility;
+					localTrainDistanceUtility = sTrainDistanceUtility;
+					busTimeUtility = -1.;
+					busDistanceUtility = 0.;
+					metroTimeUtility = -1;
+					metroDistanceUtility = 0.;
+					walkTimeUtility = -1;
+					walkDistanceUtility = 0.;
+					transferPenalty = 0;
+					System.out.println("Same disutilities: ");
+				} else {
+					System.out.println("Varying disutilities");
+				}
+				Config smallScaleConfig = createConfig();
+				smallScaleConfig.transit().setTransitScheduleFile(
+						"/work1/s103232/PassengerDelay/Diagnostics/perfectschedule2014_09_01_Reduced2.xml");
+				smallScaleConfig.plans().setInputFile(null);
+
+
+				Scenario smallScaleScenario = ScenarioUtils.loadScenario(smallScaleConfig);
+
+				RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(smallScaleConfig);
+
+				RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
+
+				RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
+				Map<String, RoutingModule> routingModuleMap = new HashMap<String, RoutingModule>();
+
+				RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(smallScaleScenario.getPopulation(), iae, routingModuleMap);
+
+				RaptorStaticConfig smallScaleStaticConfig = RunMatsim.createRaptorStaticConfig(smallScaleConfig);
+
+
+				SwissRailRaptorData data = SwissRailRaptorData.create(smallScaleScenario.getTransitSchedule(), smallScaleStaticConfig ,
+						smallScaleScenario.getNetwork());
+
+				MySwissRailRaptor raptor = new MySwissRailRaptor(data, arg3, arg4, stopFinder);
+
+				System.out.println("Departure time: " +  depTime);
+				MyFakeFacility fromFac = new MyFakeFacility(new Coord(719025.7, 6177189));
+				MyFakeFacility toFac = new MyFakeFacility(new Coord(  691950, 6192075));
+				MyFakeFacility vanloseFac = new MyFakeFacility(new Coord(  719525, 6176783.1 ));
+				MyFakeFacility  oFac = new MyFakeFacility(new Coord(  723564.4773, 6176587.9534));
+				MyFakeFacility  dFac = new MyFakeFacility(new Coord(  723435.9862, 6176825.2263));
+				
+				
+				System.out.println("\ntest: ");
+				List<Leg> path = raptor.calcRoute(oFac, dFac, 55549.0, null, false, null, null);
+				printAboutPath(path);
+				path = raptor.calcRoute(oFac, dFac, 55549.0, null);
+				printAboutPath(path);
+				
+				
+
+
+				System.out.println("\nEntire Trip: ");
+				path = raptor.calcRoute(fromFac, toFac, depTime, null, false, null, null);
+				printAboutPath(path);
+
+				System.out.println("\nTo Vanlose: ");
+				path = raptor.calcRoute(fromFac, vanloseFac, depTime, null, false, null, null);
+				printAboutPath(path);
+			}
+
+			System.exit(-1);
+
+		}
+
+
+
 
 		Scenario[] scenarios = new Scenario[cores];
 		for (i = 0; i < cores; i++) {
@@ -255,7 +352,7 @@ public class RunMatsim {
 			scenario = CreateBaseTransitSchedule.addBaseSchedule(scenario, date);
 			createConstantMaps(scenario.getTransitSchedule().getTransitLines().values());
 			createDepMaps(RunMatsim.startTime, scenario.getTransitSchedule().getTransitLines().values());
-			performingBaseJob(scenario, passengerDelayPersons, persons, scenarios,date);
+			performingBaseJob(passengerDelayPersons, persons, scenarios,date);
 		} else {
 			CreateBaseTransitSchedule.clearTransitSchedule(scenario);
 			if(adaptivenessType == AdaptivenessType.RIGID){
@@ -263,7 +360,7 @@ public class RunMatsim {
 				scenario = CreateBaseTransitSchedule.addBaseSchedule(scenario, "base");
 				createConstantMaps(scenario.getTransitSchedule().getTransitLines().values());
 				createDepMaps(RunMatsim.startTime, scenario.getTransitSchedule().getTransitLines().values());
-				performingBaseJob(scenario, passengerDelayPersons, persons, scenarios, "base");
+				performingBaseJob(passengerDelayPersons, persons, scenarios, "base");
 				clearConstantMaps();
 				CreateBaseTransitSchedule.clearTransitSchedule(scenario);
 			}
@@ -396,6 +493,29 @@ public class RunMatsim {
 
 	}
 
+	private static void printAboutPath(List<Leg> path) {
+		if(path == null) {
+			System.out.println("Path is null....");
+		} else {
+			double totalTravelTime = 0.;
+			for(Leg leg : path) {
+				Route rawRoute = leg.getRoute();
+				if(rawRoute instanceof GenericRouteImpl) {
+					GenericRouteImpl walkRoute = (GenericRouteImpl) rawRoute;
+					System.out.println("Walk: " + " Distance: " + walkRoute.getDistance() + " TravelTime: " +
+							walkRoute.getTravelTime());
+				} else  {
+					ExperimentalTransitRoute ptRoute = (ExperimentalTransitRoute) rawRoute;
+					System.out.println("PT: " + ptRoute.getAccessStopId() + "->" + ptRoute.getEgressStopId() + ", a distance of " +
+							ptRoute.getDistance() + " lasting " + ptRoute.getTravelTime() + " seconds.");
+				}
+				totalTravelTime += leg.getTravelTime();
+			}
+			System.out.println("Total travel time: " + totalTravelTime);
+		}
+
+	}
+
 	public static ConcurrentHashMap<String, Id<TransitStopFacility>> createStop2StopGroupMap() {
 		String inputFile = INPUT_FOLDER + "/OtherInput/NewStops.csv";
 		ConcurrentHashMap<String, Id<TransitStopFacility>> output = new ConcurrentHashMap<String,Id<TransitStopFacility>>();
@@ -418,7 +538,7 @@ public class RunMatsim {
 	}
 
 
-	private static void performingBaseJob(Scenario scenario, PassengerDelayPerson[] passengerDelayPersons,
+	private static void performingBaseJob(PassengerDelayPerson[] passengerDelayPersons,
 			LinkedList<PassengerDelayPerson>[] persons, Scenario[] scenarios, String date) {
 		long backThen = System.currentTimeMillis();
 
@@ -468,25 +588,6 @@ public class RunMatsim {
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			}
-
-
-			if(date.equals("base")){
-				// Write output plans....
-				Scenario outputScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
-				PopulationFactory fac = outputScenario.getPopulation().getFactory();
-				for(PassengerDelayPerson pdPerson : passengerDelayPersons){
-					Person person = fac.createPerson(pdPerson.getId());
-					Plan plan = pdPerson.getPlan();
-					if(plan.getPlanElements().size() >= 3){
-						plan.setPerson(person);
-						person.addPlan(plan);
-						person.setSelectedPlan(plan);
-						outputScenario.getPopulation().addPerson(person);
-					}
-				}
-				PopulationWriter writer = new PopulationWriter(outputScenario.getPopulation());
-				writer.write("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH.xml.gz");
 			}
 		}
 	}
@@ -691,16 +792,16 @@ public class RunMatsim {
 					double time = stop.getArrivalOffset();
 					if (prevTime > time && prevTime - time <= 20 * 3600) {
 						System.err.println("@" + stopwatch + ": " + route.getId() + " of line " + line.getId()
-								+ " Stop#" + counter + ": " + stop.getStopFacility().getId() + "Arrival error: "
-								+ prevTime + " > " + time);
+						+ " Stop#" + counter + ": " + stop.getStopFacility().getId() + "Arrival error: "
+						+ prevTime + " > " + time);
 						return false;
 					}
 					prevTime = time;
 					time = stop.getDepartureOffset();
 					if (prevTime > time && prevTime - time <= 20 * 3600) {
 						System.err.println("@" + stopwatch + ": " + route.getId() + " of line " + line.getId()
-								+ " Stop #" + counter + ": " + stop.getStopFacility().getId() + ": Departure error: "
-								+ prevTime + " > " + time);
+						+ " Stop #" + counter + ": " + stop.getStopFacility().getId() + ": Departure error: "
+						+ prevTime + " > " + time);
 						return false;
 					}
 					counter++;
@@ -852,25 +953,21 @@ public class RunMatsim {
 		// 600 is 10 minutes walk. Seems legit.
 
 		config.transitRouter().setMaxBeelineWalkConnectionDistance(maxBeelineTransferWalk);
-		config.transitRouter().setSearchRadius(3000.); // Andersson 2013 (evt
-		// 2016)
+		config.transitRouter().setSearchRadius(searchRadius); 
 		config.transitRouter().setAdditionalTransferTime(transferBufferTime);
-		config.transitRouter().setExtensionRadius(5000.);
-		config.transitRouter().setDirectWalkFactor(1.);
+		config.transitRouter().setExtensionRadius(extensionRadius);
+		config.transitRouter().setDirectWalkFactor(walkBeelineDistanceFactor);
 		config.plansCalcRoute().clearModeRoutingParams();
-		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setBeelineDistanceFactor(1.);
-		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.walk).setTeleportedModeSpeed(1.);
-		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.transit_walk).setBeelineDistanceFactor(1.);
-		config.plansCalcRoute().getOrCreateModeRoutingParams(TransportMode.transit_walk).setTeleportedModeSpeed(1.);
 
-		ModeParams walkParams = new ModeParams(TransportMode.walk);
-		walkParams.setMarginalUtilityOfDistance(walkDistanceUtility);
-		walkParams.setMarginalUtilityOfTraveling(walkTimeUtility);
-		config.planCalcScore().addModeParams(walkParams);
-		ModeParams transitWalkParams = new ModeParams(TransportMode.transit_walk);
-		transitWalkParams.setMarginalUtilityOfDistance(walkDistanceUtility);
-		transitWalkParams.setMarginalUtilityOfTraveling(walkTimeUtility);
-		config.planCalcScore().addModeParams(transitWalkParams);
+		for(String mode : Arrays.asList(TransportMode.walk, TransportMode.transit_walk, TransportMode.non_network_walk,
+				TransportMode.access_walk, TransportMode.egress_walk)) {
+			config.plansCalcRoute().getOrCreateModeRoutingParams(mode).setBeelineDistanceFactor(walkBeelineDistanceFactor);
+			config.plansCalcRoute().getOrCreateModeRoutingParams(mode).setTeleportedModeSpeed(walkSpeed);
+			ModeParams walkParams = new ModeParams(mode);
+			walkParams.setMarginalUtilityOfDistance(walkDistanceUtility);
+			walkParams.setMarginalUtilityOfTraveling(walkTimeUtility);
+			config.planCalcScore().addModeParams(walkParams);
+		}
 
 		config.planCalcScore().setPerforming_utils_hr(0);
 		config.transit().setTransitModes(ptSubModes);

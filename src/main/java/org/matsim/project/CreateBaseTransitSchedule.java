@@ -86,10 +86,8 @@ public class CreateBaseTransitSchedule {
 		} else {
 			scenario = addTrainSchedule(scenario,INPUT_FOLDER + "/Disaggregate/Train/" + date + "/AVLSchedule_" + date + ".csv");
 			scenario = addBusSchedule(scenario, INPUT_FOLDER + "/Disaggregate/Bus/" + date + "/AVLSchedule_" + date + ".csv");	
-			scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
-					"/MetroSchedule.xml");
-			scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
-					"/LocalTrainSchedule.xml");
+			scenario = addStaticSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml");
+			scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml");
 		}
 		return scenario;
 	}
@@ -99,10 +97,8 @@ public class CreateBaseTransitSchedule {
 				date + "_" + stopwatch + ".csv");
 		scenario = addBusSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Bus/" + date + "/DisaggregateBusSchedule_" + 
 				date + "_" + stopwatch + ".csv");
-		scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
-				"/MetroSchedule.xml", stopwatch);
-		scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/Disaggregate/Train/" + date +
-				"/LocalTrainSchedule.xml", stopwatch);
+		scenario = addStaticSchedule(scenario, INPUT_FOLDER + "/BaseSchedules/MetroSchedule.xml");
+		scenario = addStaticSchedule(scenario, RunMatsim.INPUT_FOLDER + "/BaseSchedules/LocalTrainSchedule.xml");
 		return scenario;
 	}
 

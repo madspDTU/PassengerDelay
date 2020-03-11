@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE transitSchedule SYSTEM "http://www.matsim.org/files/dtd/transitSchedule_v2.dtd">
+
+<transitSchedule>
+	<attributes>
+		<attribute name="coordinateReferenceSystem" class="java.lang.String">Atlantis</attribute>
+	</attributes>
+
+	<transitStops>
+		<stopFacility id="B1" x="716505.61" y="6179159.98" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="B2" x="718772.058333333" y="6177216.31166667" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="B3" x="719146.81" y="6177352.68666667" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="B4" x="719230.63" y="6177147.26" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="B5" x="719408.534375" y="6176719.285325" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="B6" x="724261.00745" y="6175737.7766" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="T1" x="725540.645" y="6177796.695" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="T2" x="719915.51" y="6176612.285" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="T3" x="719525.6" y="6176783.19" linkRefId="DummyLink" isBlocking="false"/>
+		<stopFacility id="T4" x="691950.995" y="6192069.51" linkRefId="DummyLink" isBlocking="false"/>
+		</transitStops>
+
+	<transitLine id="12">
+		<transitRoute id="87176725">
+			<transportMode>bus</transportMode>
+			<routeProfile>
+				<stop refId="B1" arrivalOffset="00:00:00" departureOffset="00:00:00" awaitDeparture="false"/>
+				<stop refId="B2" arrivalOffset="00:17:21" departureOffset="00:17:56" awaitDeparture="false"/>
+				<stop refId="B3" arrivalOffset="00:18:38" departureOffset="00:18:38" awaitDeparture="false"/>
+				<stop refId="B4" arrivalOffset="00:19:19" departureOffset="00:19:19" awaitDeparture="false"/>
+				<stop refId="B5" arrivalOffset="00:20:01" departureOffset="00:20:17" awaitDeparture="false"/>
+				</routeProfile>
+			<route>
+				<link refId="DummyLink"/>
+				<link refId="DummyLink"/>
+			</route>
+			<departures>
+				<departure id="87176725" departureTime="19:14:10"/>
+			</departures>
+		</transitRoute>
+		<transitRoute id="87178952">
+			<transportMode>bus</transportMode>
+			<routeProfile>
+				<stop refId="B6" arrivalOffset="00:00:00" departureOffset="00:00:00" awaitDeparture="false"/>
+				<stop refId="B5" arrivalOffset="00:22:32" departureOffset="00:22:46" awaitDeparture="false"/>
+				<stop refId="B4" arrivalOffset="00:23:30" departureOffset="00:23:30" awaitDeparture="false"/>
+				<stop refId="B3" arrivalOffset="00:24:03" departureOffset="00:24:03" awaitDeparture="false"/>
+				<stop refId="B2" arrivalOffset="00:25:03" departureOffset="00:25:03" awaitDeparture="false"/>
+			</routeProfile>
+			<route>
+				<link refId="DummyLink"/>
+				<link refId="DummyLink"/>
+			</route>
+			<departures>
+				<departure id="87178952" departureTime="19:14:53"/>
+			</departures>
+		</transitRoute>
+			</transitLine>
+	<transitLine id="H Frederikssund - Farum">
+		<transitRoute id="52258">
+			<transportMode>S-train</transportMode>
+			<routeProfile>
+				<stop refId="T1" arrivalOffset="00:00:00" departureOffset="00:00:00" awaitDeparture="false"/>
+				<stop refId="T2" arrivalOffset="00:16:42" departureOffset="00:17:11" awaitDeparture="false"/>
+				<stop refId="T3" arrivalOffset="00:18:39" departureOffset="00:19:02" awaitDeparture="false"/>
+				<stop refId="T4" arrivalOffset="00:49:38" departureOffset="00:49:38" awaitDeparture="false"/>
+			</routeProfile>
+			<route>
+				<link refId="DummyLink"/>
+				<link refId="DummyLink"/>
+			</route>
+			<departures>
+				<departure id="52258" departureTime="19:18:30"/>
+			</departures>
+		</transitRoute>
+		<transitRoute id="52259">
+			<transportMode>S-train</transportMode>
+			<routeProfile>
+				<stop refId="T1" arrivalOffset="00:00:00" departureOffset="00:00:00" awaitDeparture="false"/>
+				<stop refId="T2" arrivalOffset="00:16:41" departureOffset="00:17:11" awaitDeparture="false"/>
+				<stop refId="T3" arrivalOffset="00:18:19" departureOffset="00:18:47" awaitDeparture="false"/>
+				<stop refId="T4" arrivalOffset="00:49:36" departureOffset="00:49:36" awaitDeparture="false"/>
+			</routeProfile>
+			<route>
+				<link refId="DummyLink"/>
+				<link refId="DummyLink"/>
+			</route>
+			<departures>
+				<departure id="52259" departureTime="19:38:42"/>
+			</departures>
+		</transitRoute>
+	</transitLine>
+</transitSchedule>	

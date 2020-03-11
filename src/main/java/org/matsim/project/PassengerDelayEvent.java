@@ -25,8 +25,15 @@ public class PassengerDelayEvent {
 		this.type = type;
 		this.time = time;
 		this.fromCoord = fromLocation.getCoord();
-		this.fromString = fromLocation instanceof TransitStopFacility ? 
-				((TransitStopFacility) fromLocation).getId().toString() : "ACTIVITY";
+		String fromString;
+		if( fromLocation instanceof TransitStopFacility ) {
+			fromString = ((TransitStopFacility) fromLocation).getId().toString();
+		} else if(how.equals("DURING_WALK")) {
+			fromString = "COORDINATE";
+		} else {
+			fromString = "ACTIVITY";
+		}
+		this.fromString = fromString;
 		this.toCoord = toLocation.getCoord();
 		this.toString = toLocation instanceof TransitStopFacility ? 
 				((TransitStopFacility) toLocation).getId().toString() : "ACTIVITY";

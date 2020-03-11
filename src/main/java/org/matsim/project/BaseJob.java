@@ -8,6 +8,7 @@ import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.core.config.Config;
 import org.matsim.core.router.RoutingModule;
+import org.matsim.pt.transitSchedule.api.TransitScheduleWriter;
 
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorIntermodalAccessEgress;
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorParametersForPerson;
@@ -56,12 +57,13 @@ public class BaseJob  implements Runnable {
 			RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
 			Map<String, RoutingModule> routingModuleMap = new HashMap<String, RoutingModule>();
 
-			RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(scenario.getPopulation(), iae, routingModuleMap);
+			RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(null, iae, routingModuleMap);
 
 			RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
 
 			this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
 			this.scenario = CreateBaseTransitSchedule.addBaseSchedule(scenario, date);
+			
 			
 			SwissRailRaptorData data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig ,
 					scenario.getNetwork());
@@ -79,7 +81,6 @@ public class BaseJob  implements Runnable {
 					person.createAllRoutesOfDay();
 				} else {
 					person.createEntireDayEvents();
-
 				}
 				counter++;
 				if(counter % 5000 == 0){

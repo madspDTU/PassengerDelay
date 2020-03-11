@@ -50,7 +50,7 @@ public class AdvanceJob  implements Runnable {
 
 
 				RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
-
+				
 				RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
 
 				RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
@@ -59,7 +59,7 @@ public class AdvanceJob  implements Runnable {
 				RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(scenario.getPopulation(), iae, routingModuleMap);
 
 				RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
-
+				
 				this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
 				this.scenario = CreateBaseTransitSchedule.addSchedule(scenario, RunMatsim.date, stopwatch);
 

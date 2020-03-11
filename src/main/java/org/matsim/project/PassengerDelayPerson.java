@@ -21,13 +21,17 @@ import org.matsim.facilities.Facility;
 import org.matsim.project.PassengerDelayEvent.EventType;
 import org.matsim.project.RunMatsim.AdaptivenessType;
 import org.matsim.pt.routes.ExperimentalTransitRoute;
+import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.population.routes.GenericRouteImpl;
+import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.pt.transitSchedule.api.Departure;
 import org.matsim.pt.transitSchedule.api.TransitLine;
 import org.matsim.pt.transitSchedule.api.TransitRoute;
 import org.matsim.pt.transitSchedule.api.TransitStopFacility;
+import org.matsim.utils.objectattributes.attributable.Attributes;
 
 import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptor;
+import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
 
 
 public class PassengerDelayPerson {
@@ -89,7 +93,7 @@ public class PassengerDelayPerson {
 	public Plan getPlan(){
 		return plan;
 	}
-	
+
 	private void addEvent(EventType eventType, double time, Facility fromLocation, Facility toLocation, String descr){
 		addEvent(eventType,time,fromLocation,toLocation,descr,"");
 	}
@@ -103,14 +107,15 @@ public class PassengerDelayPerson {
 	public void createEntireDayEvents(){
 		int N = plan.getPlanElements().size();
 		for(int n = 0; n < N; n++){
-			if(plan.getPlanElements().get(n + 0) instanceof Activity){
-				Activity act = (Activity) plan.getPlanElements().get(n + 0);
+			if(plan.getPlanElements().get(n) instanceof Activity){
+				Activity act = (Activity) plan.getPlanElements().get(n);
 				this.currentLocation = new MyFakeFacility(act.getCoord());
 				this.currentClock = Double.max(currentClock, act.getEndTime().seconds());
 			} else {
-				Leg leg = (Leg) plan.getPlanElements().get(n + 0);
+				Leg leg = (Leg) plan.getPlanElements().get(n);
 				this.pathDestinationLocation = new MyFakeFacility(((Activity) plan.getPlanElements().get(n + 1)).getCoord());
 				if(leg.getMode().equals(TransportMode.pt)){
+
 					this.currentPath = calculateShortestPath(this.currentLocation,
 							this.pathDestinationLocation, this.currentClock);
 					while(!currentPath.isEmpty()){
@@ -127,8 +132,8 @@ public class PassengerDelayPerson {
 									this.currentLocation, this.nextLocationOfInterest, "WALK");
 						} else {
 							MyTransitRoute ptRoute = (MyTransitRoute) route;
-							Facility waitingLocation = this.nextLocationOfInterest;
-							double waitingStartTime= ptRoute.getLegDepartureTime();
+							Facility waitingLocation = this.currentLocation;
+							double waitingStartTime = ptRoute.getLegDepartureTime();
 							addEvent(EventType.WAIT_START, waitingStartTime, waitingLocation, waitingLocation, "WAIT");
 							this.nextLocationOfInterest = RunMatsim.facilities.get(ptRoute.getEgressStopId());
 							Id<Departure> departureId = ptRoute.getDepartureId();
@@ -137,7 +142,16 @@ public class PassengerDelayPerson {
 									ptRoute.getLineId().toString(), ptRoute.getDepartureId().toString());
 						}
 						this.currentLocation = this.nextLocationOfInterest;
+						if(this.currentPath.size() == 1) {
+							// To fix a walk trip that was created as a walk to a stop,
+							// and subsequently to an activity, i.e. walks in L shapes.
+						//	this.currentClock += ((GenericRouteImpl) route).getDistance() / 
+						//			RunMatsim.walkSpeed * RunMatsim.walkBeelineDistanceFactor;
+						} else {
+						//	this.currentClock += pathLeg.getTravelTime();
+						}
 						this.currentClock += pathLeg.getTravelTime();
+						
 						this.currentPath.remove(0);
 					}
 					this.nextLocationOfInterest = this.currentLocation;
@@ -158,6 +172,15 @@ public class PassengerDelayPerson {
 				}
 			}
 		}
+	}
+
+	private void printAllEvents() {
+		for(PassengerDelayEvent event : events) {
+			System.out.println(event.type + ": Time: " + event.time + " How: " + event.how +
+					" From: " + event.fromString + " To:" + event.toString + " FromCoord: " +
+					event.fromCoord + " ToCoord: " + event.toCoord +  " DepartureId: " + event.departureId);
+		}
+
 	}
 
 	void advance() {
@@ -187,9 +210,6 @@ public class PassengerDelayPerson {
 		this.raptor = raptor;
 	}
 
-	void setZeroSearchRadiusRaptor(MySwissRailRaptor raptor_searchRadius0) {
-		this.raptor = raptor_searchRadius0;
-	}
 
 	/*
 	 * Function handling an agent currently at or entering an activity.
@@ -228,17 +248,41 @@ public class PassengerDelayPerson {
 	}
 
 	private List<Leg> normalCalcRoute(Facility fromFacility, Facility toFacility, double time){
-		return this.raptor.calcRoute(fromFacility, toFacility, time, null, false, null, null);
+		List<Leg> path = this.raptor.calcRoute(fromFacility, toFacility, time, null); //, false, null, null);
+		if(path == null) {
+			path = createDirectWalkPath(fromFacility, toFacility, time);
+		}
+		return path;
 	}
 
 	private List<Leg> onboardCalcRoute(Facility fromFacility, Facility toFacility, double time, Id<TransitRoute> routeId, Id<TransitStopFacility> stopId){
-		return this.raptor.calcRoute(fromFacility, toFacility, time, null, true, routeId, stopId);
+		List<Leg> path = this.raptor.calcRoute(fromFacility, toFacility, time, null); //, true, routeId, stopId);
+		if(path == null) {
+			path = createDirectWalkPath(fromFacility, toFacility, time);
+		}
+		return path;
 	}
 
 	private List<Leg> calculateShortestPath(Facility fromFacility, Facility toFacility, double time) {
 		this.tPSPS = this.stopwatch; 
 		List<Leg> path = normalCalcRoute(fromFacility, toFacility, time);
 		path = stripPathForZeroWalksAndConvert2MyTransitRoute(path);
+		return path;
+	}
+
+	private List<Leg> createDirectWalkPath(Facility fromFacility, Facility toFacility, double time) {
+		LinkedList<Leg> path = new LinkedList<Leg>();
+		Leg leg = PopulationUtils.createLeg(TransportMode.walk);
+		leg.setDepartureTime(time);
+		double distance = CoordUtils.calcProjectedEuclideanDistance(fromFacility.getCoord(), toFacility.getCoord()) /
+				RunMatsim.walkBeelineDistanceFactor;
+		double travelTime = distance / RunMatsim.walkSpeed;
+		leg.setTravelTime(distance / RunMatsim.walkSpeed);
+		GenericRouteImpl route = new GenericRouteImpl(null, null);
+		route.setDistance(distance);
+		route.setTravelTime(travelTime);
+		leg.setRoute(route);
+		path.add(leg);
 		return path;
 	}
 
@@ -271,9 +315,9 @@ public class PassengerDelayPerson {
 			TransitStopFacility newEgressStop = RunMatsim.facilities.get(((MyTransitRoute) path.get(0).getRoute()).getEgressStopId());
 			if( newEgressStop != nextLocationOfInterest){
 				addEvent(EventType.PIS_NOTIFICATION, time, fromFacility, newEgressStop, "IN_VEHICLE");
+				this.nextTimeOfInterest = RunMatsim.arrivalTimeOfDepartureAtStop.get(this.currentDepartureId).get(newEgressStop.getId());
+				this.nextLocationOfInterest = RunMatsim.facilities.get(newEgressStop.getId());
 			}
-			this.nextTimeOfInterest = RunMatsim.arrivalTimeOfDepartureAtStop.get(this.currentDepartureId).get(newEgressStop.getId());
-			this.nextLocationOfInterest = RunMatsim.facilities.get(newEgressStop.getId());
 			path.remove(0);
 		}
 		return path;
@@ -370,7 +414,7 @@ public class PassengerDelayPerson {
 				this.currentClock = this.stopwatch + this.timeStep;
 				return;
 			} else if (actualBoardingTime < this.currentClock){
-				
+
 				// It would be better to do this afterwards, but would create bias, such that non-adaptive runs
 				// would be better at catching next departure than the adaptive ones.
 				this.currentClock = this.stopwatch + this.timeStep;
@@ -384,33 +428,6 @@ public class PassengerDelayPerson {
 					}
 				}
 				return;
-//					departureId = entry.getValue();
-//					myRoute.setDepartureId(departureId);
-//					double departureTime = entry.getKey();
-//					if(departureTime <= this.stopwatch + this.timeStep){
-//						this.status = Status.VEHICLE;
-//						this.currentClock = departureTime;
-//						
-//						this.nextTimeOfInterest = RunMatsim.arrivalTimeOfDepartureAtStop.get(departureId).get(toStopId);
-//						this.currentDepartureId = departureId;
-//						this.currentPath.remove(0);
-//						Id<TransitLine> lineId = RunMatsim.dep2Line.get(this.stopwatch).get(departureId);
-////						if(lineId == null){
-////							System.err.println("departureId for which no line exists:" + departureId);
-////							System.err.println("lineId is null");
-////						}
-////						if(this.currentDepartureId == null){
-////							System.err.println("lineId is null");
-////						}
-//						addEvent(EventType.BOARDING, this.currentClock, this.currentLocation, this.nextLocationOfInterest,
-//								lineId.toString(), this.currentDepartureId.toString());
-//						inVehicleFunction();
-//					} else {
-//						//Wait until the departure becomes relevant at some point.
-//						this.currentClock = this.stopwatch + this.timeStep;
-//					}
-//					return;
-//				}
 			} else {
 				this.status = Status.VEHICLE;
 				this.currentClock = actualBoardingTime;
@@ -438,13 +455,6 @@ public class PassengerDelayPerson {
 		Id<TransitStopFacility> toStopId = route.getEgressStopId();
 		double journeyTime = RunMatsim.route2StopArrival.get(this.tPSPS).get(routeId).get(toStopId);
 		double departureTime = egressTime - journeyTime;
-//		if(RunMatsim.route2Departure.get(this.tPSPS).get(routeId).get(departureTime) == null){
-//			System.err.println("Found departure Id is null..., although map size is " + RunMatsim.route2Departure.get(this.tPSPS).get(routeId).size() +
-//					" for routeId: " + routeId + ". DepartureTimeaux is: " + departureTime + " vs ");
-//			for(Double key : RunMatsim.route2Departure.get(this.tPSPS).get(routeId).keySet()){
-//				System.err.println(key);
-//			}
-//		}
 		return RunMatsim.route2Departure.get(this.tPSPS).get(routeId).get(departureTime);
 	}
 
@@ -485,25 +495,38 @@ public class PassengerDelayPerson {
 
 
 	private void walkFunction() {
+		if(!(this.currentPath.get(0).getRoute() instanceof GenericRouteImpl)) {
+			System.out.println(this.id);
+			System.out.println(this.currentLocation.getCoord());
+			System.out.println(RunMatsim.facilities.get(((MyTransitRoute) this.currentPath.get(0).getRoute()).getAccessStopId()).getCoord());
+			System.out.println(this.currentClock);
+			System.out.println(this.stopwatch);
+			System.out.print(this.currentPath.size());
+			for(Leg leg : this.currentPath) {
+				System.out.println("Leg: " + leg.getMode() + " from " + leg.getDepartureTime() + " to " + (leg.getDepartureTime() + leg.getTravelTime()) + 
+						". Distance: " +	leg.getRoute().getDistance());
+			}
+			printAllEvents();
+		}
 		Gbl.assertIf(this.currentPath.get(0).getRoute() instanceof GenericRouteImpl);
 
-		if (tPSPS < this.stopwatch && RunMatsim.adaptivenessType == AdaptivenessType.FULLADAPTIVE) {
-			currentPath = calculateShortestPath(currentLocation, pathDestinationLocation, this.currentClock);
+		if (this.tPSPS < this.stopwatch && RunMatsim.adaptivenessType == AdaptivenessType.FULLADAPTIVE) {
+			this.currentPath = calculateShortestPath(this.currentLocation, this.pathDestinationLocation, this.currentClock);
 			Facility newNextLocation = extractNextLocationOfInterestFromCurrentPath();
 			if(newNextLocation != this.nextLocationOfInterest){
 				addEvent(EventType.PIS_NOTIFICATION,this.currentClock, this.currentLocation, newNextLocation, "DURING_WALK");
 			}
 			this.nextLocationOfInterest = newNextLocation;
 		}
-
+	
 		double lambda = (this.stopwatch + this.timeStep - this.currentClock) * WALKING_SPEED;
 		double d = NetworkUtils.getEuclideanDistance(currentLocation.getCoord(), nextLocationOfInterest.getCoord());
-		if(lambda < d - 1.){ //Within one meter, we accept (lasts 0 seconds).
+		if(lambda + 0.000001 < d ){ 
 			this.currentLocation = updateLocationDuringAWalkLeg(lambda/d);
 			this.currentClock = this.stopwatch + this.timeStep;
 			return;
 		} else {
-			this.currentClock = this.stopwatch + d / WALKING_SPEED;
+			this.currentClock +=  d / WALKING_SPEED;
 			this.currentLocation = this.nextLocationOfInterest;
 			this.currentPath.remove(0);
 			if( !this.currentPath.isEmpty() ){
@@ -566,7 +589,7 @@ public class PassengerDelayPerson {
 		}
 		return s.toString();
 	}
-	
+
 	public void createAllRoutesOfDay() {
 		double tempCurrentClock = RunMatsim.startTime;
 		Facility tempLocation = this.currentLocation;

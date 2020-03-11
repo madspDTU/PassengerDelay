@@ -31,7 +31,7 @@ public class createShellFiles {
 			part2 += "#BSUB -R \"rusage[mem=21GB]\"\n" + "#BSUB -M 22500MB\n" ;  
 		} else {
 			part2 += "#BSUB -R \"rusage[mem=5500MB]\"\n" + "#BSUB -M 6GB\n";
-		}
+		}  
 		part2 +=  "#BSUB -W 18:00\n\n" +
 		"#BSUB -u madsp@dtu.dk\n" +
 		"#BSUB -B\n" +
@@ -42,7 +42,7 @@ public class createShellFiles {
 		String part4 = "_E\n\n" +
 				
 			//	"export JAVA_HOME=/usr/java/jdk-10.0.1/\n" +
-				"export JAVA_HOME=/zhome/81/e/64390/LATESTJAVA\n" +
+				"export JAVA_HOME=/zhome/81/e/64390/LATESTJAVA/\n" +
 				
 				"cd /zhome/81/e/64390/git/PassengerDelayGit/\n" +
 				// Commented out, because installing may kill already running jobs!!!!!!!!!!!!!!
@@ -63,5 +63,6 @@ public class createShellFiles {
 			writer.flush();
 			writer.close();
 		}
+		System.out.println("Completed");
 	}
 }
