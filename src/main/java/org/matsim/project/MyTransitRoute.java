@@ -3,115 +3,147 @@ package org.matsim.project;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.population.Route;
+import org.matsim.core.utils.misc.OptionalTime;
+import org.matsim.core.utils.misc.OptionalTimes;
+import org.matsim.project.pt.MyDepartureImpl;
+import org.matsim.project.pt.MyTransitLineImpl;
+import org.matsim.project.pt.MyTransitRouteImpl;
+import org.matsim.project.pt.MyTransitStopFacilityImpl;
 import org.matsim.pt.routes.ExperimentalTransitRoute;
-import org.matsim.pt.transitSchedule.api.Departure;
-import org.matsim.pt.transitSchedule.api.TransitLine;
-import org.matsim.pt.transitSchedule.api.TransitRoute;
-import org.matsim.pt.transitSchedule.api.TransitStopFacility;
+
+import ch.sbb.matsim.routing.pt.raptor.MyRaptorRoute;
 
 public class MyTransitRoute implements Route {
 	
-	private ExperimentalTransitRoute delegate;
-	private Id<Departure> departureId;
-	private double legDepartureTime;
+	private Id<MyTransitStopFacilityImpl> accessStopId;
+	private Id<MyTransitStopFacilityImpl> egressStopId;
+	private Id<MyDepartureImpl> departureId;
+	private int legDepartureTime;
+	private Id<MyTransitLineImpl> lineId;
+	private int travelTime;
+	private int accessIndexAlongRoute;
+	private int egressIndexAlongRoute;
+	
 
-	public MyTransitRoute(ExperimentalTransitRoute route) {
-		this.delegate = route;
-	}
-	
-	public void setDepartureId(Id<Departure> departureId){
+	public MyTransitRoute(MyRaptorRoute.RoutePart part, Id<MyDepartureImpl> departureId) {
+		this.accessStopId = part.fromRouteStop.getStopFacility().getId();
+		this.egressStopId = part.toRouteStop.getStopFacility().getId();
+		this.lineId = part.line.getId();
 		this.departureId = departureId;
+		this.travelTime = part.arrivalTime - part.depTime;
+		this.legDepartureTime = part.depTime;
+		this.accessIndexAlongRoute = part.fromRouteStop.getIndexAlongRoute();
+		this.egressIndexAlongRoute = part.toRouteStop.getIndexAlongRoute();
 	}
 	
-	public Id<Departure> getDepartureId(){
-		return this.departureId;
+	
+	public void setDepartureId(Id<MyDepartureImpl> id) {
+		this.departureId = id;
 	}
 	
-	public void setLegDepartureTime(double legStartTime){
-		this.legDepartureTime = legStartTime;
-	}
-	
-	public double getLegDepartureTime(){
+	public int getLegDepartureTime() {
 		return this.legDepartureTime;
 	}
 	
-	public ExperimentalTransitRoute getTransitRoute(){
-		return this.delegate;
+	public Id<MyDepartureImpl> getDepartureId() {
+		return this.departureId;
 	}
 
 	@Override
 	public double getDistance() {
-		return delegate.getDistance();
+		return Double.NaN;
 	}
 
 	@Override
 	public void setDistance(double distance) {
-		delegate.setDistance(distance);
 	}
 
-	@Override
-	public double getTravelTime() {
-		return delegate.getTravelTime();
-	}
 
 	@Override
 	public void setTravelTime(double travelTime) {
-		delegate.setTravelTime(travelTime);
 	}
 
 	@Override
 	public Id<Link> getStartLinkId() {
-		return delegate.getStartLinkId();
+		return null;
 	}
 
 	@Override
 	public Id<Link> getEndLinkId() {
-		return delegate.getEndLinkId();
+		return null;
 	}
 
 	@Override
 	public void setStartLinkId(Id<Link> linkId) {
-		delegate.setStartLinkId(linkId);
 	}
 
 	@Override
 	public void setEndLinkId(Id<Link> linkId) {
-		delegate.setEndLinkId(linkId);
 	}
 
 	@Override
 	public String getRouteDescription() {
-		return delegate.getRouteDescription();
+		return "";
 	}
 
 	@Override
 	public void setRouteDescription(String routeDescription) {
-		delegate.setRouteDescription(routeDescription);
 	}
 
 	@Override
 	public String getRouteType() {
-		return delegate.getRouteType();
+		return "";
 	}
 
 	@Override
 	public Route clone() {
-		return delegate;
+		return null;
 	}
 	
-	public Id<TransitStopFacility> getAccessStopId(){
-		return delegate.getAccessStopId();
+	public Id<MyTransitStopFacilityImpl> getAccessStopId(){
+		return this.accessStopId;
 	}
 	
-	public Id<TransitStopFacility> getEgressStopId(){
-		return delegate.getEgressStopId();
+	public Id<MyTransitStopFacilityImpl> getEgressStopId(){
+		return this.egressStopId;
+	}
+
+		
+	public Id<MyTransitLineImpl> getLineId(){
+		return this.lineId;
+	}
+
+	public void setLineId(Id<MyTransitLineImpl> id) {
+		this.lineId = id;
 	}
 	
-	public Id<TransitRoute> getRouteId(){
-		return delegate.getRouteId();
+	public int getAccessIndexAlongRoute() {
+		return this.accessIndexAlongRoute;
 	}
 	
-	public Id<TransitLine> getLineId(){
-		return delegate.getLineId();
+	public int getEgressIndexAlongRoute() {
+		return this.egressIndexAlongRoute;
 	}
+
+
+	public void setAccessIndexAlongRoute(int accessIndexAlongRoute) {
+		this.accessIndexAlongRoute = accessIndexAlongRoute;
+	}
+	
+	public void setEgressIndexAlongRoute(int egressIndexAlongRoute) {
+		this.egressIndexAlongRoute = egressIndexAlongRoute;
+	}
+
+
+	@Override
+	public OptionalTime getTravelTime() {
+		return OptionalTime.defined(travelTime);
+	}
+
+
+	@Override
+	public void setTravelTimeUndefined() {
+		//Do nothing		
+	}
+
 }

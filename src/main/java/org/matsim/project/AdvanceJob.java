@@ -1,24 +1,14 @@
 package org.matsim.project;
 
-import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Map;
 import org.matsim.api.core.v01.Scenario;
-import org.matsim.api.core.v01.TransportMode;
 import org.matsim.core.config.Config;
-import org.matsim.core.router.RoutingModule;
-import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorIntermodalAccessEgress;
+import org.matsim.project.pt.MyTransitScheduleImpl;
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorParametersForPerson;
-import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorStopFinder;
-import ch.sbb.matsim.routing.pt.raptor.LeastCostRaptorRouteSelector;
-import ch.sbb.matsim.routing.pt.raptor.RaptorIntermodalAccessEgress;
 import ch.sbb.matsim.routing.pt.raptor.RaptorParametersForPerson;
-import ch.sbb.matsim.routing.pt.raptor.RaptorRouteSelector;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig;
-import ch.sbb.matsim.routing.pt.raptor.RaptorStopFinder;
 import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptor;
-import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
-import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig.RaptorOptimization;
+import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptorData;
 
 public class AdvanceJob  implements Runnable {
 
@@ -27,11 +17,13 @@ public class AdvanceJob  implements Runnable {
 	private Scenario scenario;
 	private long buildDuration;
 	private long fullDuration;
+	private MyTransitScheduleImpl schedule;
 
-	AdvanceJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario){
+	AdvanceJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario, MyTransitScheduleImpl schedule){
 		this.persons = persons;
 		this.stopwatch = stopwatch;
 		this.scenario = scenario;
+		this.schedule = schedule;
 	}
 
 
@@ -43,33 +35,28 @@ public class AdvanceJob  implements Runnable {
 			//	System.out.println("Free memory before: " +
 			//			Runtime.getRuntime().freeMemory() /1000000000.);
 
-			SwissRailRaptorData data = null;
+			MySwissRailRaptorData data = null;
 			MySwissRailRaptor raptor = null;
 			if(RunMatsim.adaptivenessType != RunMatsim.AdaptivenessType.RIGID){
 				Config config = this.scenario.getConfig();
 
 
-				RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
+				RaptorParametersForPerson parameters = new DefaultRaptorParametersForPerson(config);
 				
-				RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
-
-				RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
-				Map<String, RoutingModule> routingModuleMap = new HashMap<String, RoutingModule>();
-
-				RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(scenario.getPopulation(), iae, routingModuleMap);
-
 				RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
 				
-				this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
-				this.scenario = CreateBaseTransitSchedule.addSchedule(scenario, RunMatsim.date, stopwatch);
-
-				data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig, scenario.getNetwork());
+				this.schedule = CreateBaseTransitSchedule.clearTransitSchedule(this.schedule);
+				this.schedule= CreateBaseTransitSchedule.addSchedule(this.schedule, RunMatsim.date, stopwatch);
+		//		TransitScheduleWriter schedWriter = new TransitScheduleWriter(CreateBaseTransitSchedule.createScheduleFromMyTransitScheduleImpl(schedule));			
+		//		schedWriter.writeFile("/work1/s103232/PassengerDelay/Diagnostics/alongSchedule_" + this.stopwatch + ".xml");
+	
+				data = MySwissRailRaptorData.create(this.schedule, staticConfig);
 
 				long backMiddle = System.currentTimeMillis();
 				buildDuration = (backMiddle - backThen)/1000;
 				System.out.print( buildDuration + "s ");
-
-				raptor = new MySwissRailRaptor(data, arg3, arg4, stopFinder);
+				
+				raptor = new MySwissRailRaptor(data, parameters);
 			}
 
 

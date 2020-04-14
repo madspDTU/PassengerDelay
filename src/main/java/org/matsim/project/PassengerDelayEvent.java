@@ -2,8 +2,7 @@ package org.matsim.project;
 
 import org.matsim.api.core.v01.Coord;
 import org.matsim.facilities.Facility;
-import org.matsim.project.PassengerDelayEvent.EventType;
-import org.matsim.pt.transitSchedule.api.TransitStopFacility;
+import org.matsim.project.pt.MyTransitStopFacilityImpl;
 
 public class PassengerDelayEvent {
 
@@ -12,7 +11,7 @@ public class PassengerDelayEvent {
 	}
 
 	EventType type;
-	double time;
+	int time;
 	Coord fromCoord;
 	String fromString;
 	Coord toCoord;
@@ -21,13 +20,13 @@ public class PassengerDelayEvent {
 	String departureId;
 
 
-	public PassengerDelayEvent(EventType type, double time, Facility fromLocation, Facility toLocation, String how, String departureId) {
+	public PassengerDelayEvent(EventType type, int time, Facility fromLocation, Facility toLocation, String how, String departureId) {
 		this.type = type;
 		this.time = time;
 		this.fromCoord = fromLocation.getCoord();
 		String fromString;
-		if( fromLocation instanceof TransitStopFacility ) {
-			fromString = ((TransitStopFacility) fromLocation).getId().toString();
+		if( fromLocation instanceof MyTransitStopFacilityImpl ) {
+			fromString = ((MyTransitStopFacilityImpl) fromLocation).getId().toString();
 		} else if(how.equals("DURING_WALK")) {
 			fromString = "COORDINATE";
 		} else {
@@ -35,13 +34,13 @@ public class PassengerDelayEvent {
 		}
 		this.fromString = fromString;
 		this.toCoord = toLocation.getCoord();
-		this.toString = toLocation instanceof TransitStopFacility ? 
-				((TransitStopFacility) toLocation).getId().toString() : "ACTIVITY";
+		this.toString = toLocation instanceof MyTransitStopFacilityImpl ? 
+				((MyTransitStopFacilityImpl) toLocation).getId().toString() : "ACTIVITY";
 		this.how = how;
 		this.departureId = departureId;
 	}
 	
-	public PassengerDelayEvent(EventType type, double time, Facility fromLocation, Facility toLocation, String how) {
+	public PassengerDelayEvent(EventType type, int time, Facility fromLocation, Facility toLocation, String how) {
 		this(type, time, fromLocation, toLocation, how, "");
 	}
 }

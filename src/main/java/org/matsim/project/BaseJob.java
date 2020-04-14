@@ -1,27 +1,14 @@
 package org.matsim.project;
 
-import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Map;
-
 import org.matsim.api.core.v01.Scenario;
-import org.matsim.api.core.v01.TransportMode;
 import org.matsim.core.config.Config;
-import org.matsim.core.router.RoutingModule;
-import org.matsim.pt.transitSchedule.api.TransitScheduleWriter;
-
-import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorIntermodalAccessEgress;
+import org.matsim.project.pt.MyTransitScheduleImpl;
 import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorParametersForPerson;
-import ch.sbb.matsim.routing.pt.raptor.DefaultRaptorStopFinder;
-import ch.sbb.matsim.routing.pt.raptor.LeastCostRaptorRouteSelector;
-import ch.sbb.matsim.routing.pt.raptor.RaptorIntermodalAccessEgress;
 import ch.sbb.matsim.routing.pt.raptor.RaptorParametersForPerson;
-import ch.sbb.matsim.routing.pt.raptor.RaptorRouteSelector;
 import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig;
-import ch.sbb.matsim.routing.pt.raptor.RaptorStopFinder;
 import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptor;
-import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
-import ch.sbb.matsim.routing.pt.raptor.RaptorStaticConfig.RaptorOptimization;
+import ch.sbb.matsim.routing.pt.raptor.MySwissRailRaptorData;
 
 public class BaseJob  implements Runnable {
 
@@ -31,12 +18,14 @@ public class BaseJob  implements Runnable {
 	private long buildDuration;
 	private long fullDuration;
 	private String date;
+	private MyTransitScheduleImpl schedule;
 
-	BaseJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario, String date){
+	BaseJob(int stopwatch, LinkedList<PassengerDelayPerson> persons, Scenario scenario, String date, MyTransitScheduleImpl schedule){
 		this.persons = persons;
 		this.stopwatch = stopwatch;
 		this.scenario = scenario;
 		this.date = date;
+		this.schedule = schedule;
 	}
 
 
@@ -44,60 +33,63 @@ public class BaseJob  implements Runnable {
 	public void run() {
 		try{
 			long backThen = System.currentTimeMillis();
-			
-		//	System.out.println("Free memory before: " +
-		//			Runtime.getRuntime().freeMemory() /1000000000.);
+
+			//	System.out.println("Free memory before: " +
+			//			Runtime.getRuntime().freeMemory() /1000000000.);
 			Config config = this.scenario.getConfig();
-		
 
-			RaptorParametersForPerson arg3 = new DefaultRaptorParametersForPerson(config);
-			
-			RaptorRouteSelector arg4 = new LeastCostRaptorRouteSelector();
-
-			RaptorIntermodalAccessEgress iae = new DefaultRaptorIntermodalAccessEgress();
-			Map<String, RoutingModule> routingModuleMap = new HashMap<String, RoutingModule>();
-
-			RaptorStopFinder stopFinder = new DefaultRaptorStopFinder(null, iae, routingModuleMap);
-
+			RaptorParametersForPerson parameters = new DefaultRaptorParametersForPerson(config);
+	
 			RaptorStaticConfig staticConfig = RunMatsim.createRaptorStaticConfig(config);
 
-			this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
-			this.scenario = CreateBaseTransitSchedule.addBaseSchedule(scenario, date);
-			
-			
-			SwissRailRaptorData data = SwissRailRaptorData.create(scenario.getTransitSchedule(), staticConfig ,
-					scenario.getNetwork());
+			this.schedule = CreateBaseTransitSchedule.clearTransitSchedule(this.schedule);
+			this.schedule = CreateBaseTransitSchedule.addBaseSchedule(this.schedule, date);
+			//TransitScheduleWriter writer = new TransitScheduleWriter(scenario.getTransitSchedule());
+			//writer.writeFile("/work1/s103232/PassengerDelay/Diagnostics/perfectSchedule.xml");
+			//this.scenario = CreateBaseTransitSchedule.clearTransitSchedule(scenario);
+			//TransitScheduleReader reader = new TransitScheduleReader(scenario);
+			//reader.readFile("/work1/s103232/PassengerDelay/Diagnostics/perfectSchedule_reduced.xml");
+
+
+
+
+
+			MySwissRailRaptorData data = MySwissRailRaptorData.create(schedule, staticConfig);
 
 			long backMiddle = System.currentTimeMillis();
 			buildDuration = (backMiddle - backThen)/1000;
 			System.out.print( buildDuration + "s ");
-			
-			MySwissRailRaptor raptor = new MySwissRailRaptor(data, arg3, arg4, stopFinder);
+
+			MySwissRailRaptor raptor = new MySwissRailRaptor(data, parameters);
 			int counter = 0;
+			System.gc();
 			for(PassengerDelayPerson person : persons){
 				person.setStopwatch(stopwatch);
 				person.setRaptor(raptor);
 				if(RunMatsim.adaptivenessType == RunMatsim.AdaptivenessType.RIGID){
 					person.createAllRoutesOfDay();
-				} else {
+				} else { //Perfect or perfect_EXTENDED
 					person.createEntireDayEvents();
 				}
 				counter++;
-				if(counter % 5000 == 0){
-					System.out.println(counter + " persons processed by this thread");
+				int printInterval = 10000;
+				if(counter % printInterval == 0){
+					long backThousands = System.currentTimeMillis();
+					long deltaTime = (backThousands - backMiddle)/1000;
+					System.out.println(counter + " persons processed by this thread. Previous " + printInterval + " persons: " +
+							printInterval / (double) deltaTime + " persons per second.");
+					backMiddle = backThousands;
 				}
 			}
 			long backNow = System.currentTimeMillis();
 			fullDuration = (backNow - backThen)/1000;
-			
-	//		System.out.println("Free memory after " + (int) (backNow-backThen)/1000 + " seconds: " +
-	//				Runtime.getRuntime().freeMemory() / 1000000000.);
+
+			//		System.out.println("Free memory after " + (int) (backNow-backThen)/1000 + " seconds: " +
+			//				Runtime.getRuntime().freeMemory() / 1000000000.);
 		} catch(Exception e){
 			e.printStackTrace();
 			//	System.err.println("An advance job for person " + person.id + " did not terminate");
-			System.err.println("An advance job did not terminate");
-
-			System.exit(-1);
+			System.err.println("A BaseJob at time " + stopwatch + " did not terminate");
 		}
 
 	}
@@ -105,7 +97,7 @@ public class BaseJob  implements Runnable {
 	double getFullDuration(){
 		return fullDuration;
 	}
-	
+
 	double getBuildDuration(){
 		return buildDuration;
 	}

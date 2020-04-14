@@ -127,7 +127,7 @@ public class MinimalExample {
 			} else if (rawRoute instanceof GenericRouteImpl) {
 				System.out.print(" Walk -> ");
 			}
-			travelTime += leg.getTravelTime();
+			travelTime += leg.getRoute().getTravelTime().seconds();
 		}
 		System.out.print( ". TravelTime: " + travelTime);
 	}
