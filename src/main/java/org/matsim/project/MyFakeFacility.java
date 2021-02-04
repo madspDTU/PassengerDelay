@@ -13,7 +13,7 @@ public final class MyFakeFacility implements Facility {
 		return this.coord ;
 	}
 
-	public Id getId() {  
+	public Id getId() {
 		return null;
 	}
 
