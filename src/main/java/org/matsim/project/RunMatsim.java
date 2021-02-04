@@ -210,7 +210,7 @@ public class RunMatsim {
 		PopulationReader populationReader = new PopulationReader(scenario);
 		populationReader.readFile("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH_TripBased.xml.gz");
 		//populationReader.readFile("/work1/s103232/PassengerDelay/OtherInput/PTPlans_CPH_TripBased_1Trip.xml");
-
+	
 
 		if (cores > scenario.getPopulation().getPersons().size()) {
 			cores = scenario.getPopulation().getPersons().size();
@@ -223,7 +223,7 @@ public class RunMatsim {
 			passengerDelayPersons[i] = new PassengerDelayPerson(person.getId(), person.getPlans().get(0));
 			i++;
 		}
-
+		
 		LinkedList<PassengerDelayPerson>[] persons = new LinkedList[cores];
 
 		for (i = 0; i < passengerDelayPersons.length; i++) {
@@ -250,19 +250,18 @@ public class RunMatsim {
 			facilities.put(stopFacility.getId(), stopFacility);
 		}
 
-
-
+		
 
 		if (date.equals("base") || adaptivenessType == AdaptivenessType.PERFECT || adaptivenessType == AdaptivenessType.PERFECT_EXTENDED) {
 			schedule = CreateBaseTransitSchedule.clearTransitSchedule(schedule);
 			schedule = CreateBaseTransitSchedule.addBaseSchedule(schedule, date);
-//			if(adaptivenessType == AdaptivenessType.PERFECT || adaptivenessType == AdaptivenessType.PERFECT_EXTENDED) {
+			if(adaptivenessType == AdaptivenessType.PERFECT || adaptivenessType == AdaptivenessType.PERFECT_EXTENDED) {
 //				TransitScheduleWriter schedWriter = new TransitScheduleWriter(CreateBaseTransitSchedule.createScheduleFromMyTransitScheduleImpl(schedule));			
 //				schedWriter.writeFile("/work1/s103232/PassengerDelay/Diagnostics/RealisedSchedule_" + date + ".xml");
-//			} else {
-//				TransitScheduleWriter schedWriter = new TransitScheduleWriter(CreateBaseTransitSchedule.createScheduleFromMyTransitScheduleImpl(schedule));			
-//				schedWriter.writeFile("/work1/s103232/PassengerDelay/Diagnostics/BaseSchedule.xml");
-//			}
+			} else {
+				TransitScheduleWriter schedWriter = new TransitScheduleWriter(CreateBaseTransitSchedule.createScheduleFromMyTransitScheduleImpl(schedule));			
+				schedWriter.writeFile("/work1/s103232/PassengerDelay/Diagnostics/BaseSchedule.xml");
+			}
 			RunMatsim.distances = schedule.createShortestPathDistances(pruneByShortestDistances);
 			createConstantMaps(schedule.getTransitLines().values());
 			performingBaseJob(passengerDelayPersons, persons, scenarios, date, schedules);
@@ -367,7 +366,7 @@ public class RunMatsim {
 					System.out.print("\n");
 				}
 
-				if (stopwatch == (6 * 3600) || stopwatch == (8 * 3600) || stopwatch == endTime) {
+				if ( stopwatch == endTime) { // stopwatch == (6 * 3600) || stopwatch == (8 * 3600) ||
 					System.out.println("\nWriting data at time " + stopwatch + "...");
 					String hourString = "";
 					if (stopwatch != endTime) {

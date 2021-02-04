@@ -47,7 +47,7 @@ public class RunMatsimIndirectly {
 		 */
 
 
-		String[] a = new String[]{"/work1/s103232/PassengerDelay", "2014_10_31", "1", "27", "PERFECT"};
+		String[] a = new String[]{"/work1/s103232/PassengerDelay", "base", "1", "27"};//, "BASE"};
 		RunMatsim.main(a);
 	}
 }

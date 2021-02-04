@@ -15,6 +15,12 @@ public class createShellFiles {
 			} else if (adaptivenessType.equals("PERFECT")) {
 				cores = 10;
 			}
+			String wallTime = "02:30";
+			if(adaptivenessType.equals("FULLADAPTIVE")) {
+				wallTime = "10:00";
+			} else if (adaptivenessType.equals("SEMIADAPTIVE")) {
+				wallTime = "05:00";
+			} 
 
 			String dir = "/zhome/81/e/64390/MATSim/PassengerDelay/" + adaptivenessType + "/";
 
@@ -32,7 +38,7 @@ public class createShellFiles {
 			} else {
 				part2 += "#BSUB -R \"rusage[mem=5500MB]\"\n" + "#BSUB -M 6GB\n";
 			}  
-			part2 +=  "#BSUB -W 18:00\n\n" +
+			part2 +=  "#BSUB -W " + wallTime + "\n\n" +
 					"#BSUB -u madsp@dtu.dk\n" +
 					"#BSUB -B\n" +
 					"#BSUB -N\n" +

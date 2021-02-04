@@ -103,7 +103,7 @@ public class createTablesOfVehicleDelays {
 
 		List<String> scenarios = Arrays.asList("BASE","RIGID","NONADAPTIVE","SEMIADAPTIVE","FULLADAPTIVE","PERFECT");
 		for(String type : scenarios){
-			File dir = new File("/zhome/81/e/64390/MATSim/PassengerDelay/" + type);
+			File dir = new File("/work1/s103232/PassengerDelay/OldLogs_2014_12_17/" + type);
 			String[] files = dir.list();
 			double times = 0;
 			int instances = 0;
@@ -120,19 +120,24 @@ public class createTablesOfVehicleDelays {
 						} else if(nextLine.charAt(indexOfColon + 4) == 'm') {
 							time = Integer.parseInt(nextLine.substring(indexOfColon-2,indexOfColon))*60 +
 									Integer.parseInt(nextLine.substring(indexOfColon+1,indexOfColon+3));
-
+						} else {
+							System.out.println("Invalid data for: " + type + " for file: " + file);
+							break;
 						}
+						if(times > 0 && (time/60. > times/instances*1.5 || time/60. < times/instances*2./3.) ) {
+							System.out.println(time/60. + " " + type + " " + file  + " " + (time/60. > times/instances*1.5 ? "(+)" : "(-)") );
+						} 
 						times += time/60.;
 						instances++;
 						//					System.out.println(type + ": " + time/60.);
 					}
 				}
 			}
-			System.out.println(type + ": " + times / instances);
+			System.out.println(type + ": " + times / instances + " (" + instances + " instances)");
 		}
 	
-
-
+		String disaggregateName = "Disaggregate_original";
+		
 		FileWriter trainWriter = useDeparturesInstead ?  
 				new FileWriter("/work1/s103232/PassengerDelay/VehicleDelays/TrainDelays_Departures.csv") :
 					new FileWriter("/work1/s103232/PassengerDelay/VehicleDelays/TrainDelays.csv");
@@ -142,18 +147,22 @@ public class createTablesOfVehicleDelays {
 						new FileWriter("/work1/s103232/PassengerDelay/VehicleDelays/BusDelays_Departures.csv") :
 							new FileWriter("/work1/s103232/PassengerDelay/VehicleDelays/BusDelays.csv");
 						busWriter.append(  "DepartureId;StopId;Date;ScheduledTime;Delay\n");
+						long busCount = 0;
+						long trainCount = 0;
 						for(String date : dates){
 							System.out.println(date);
-							String fileName = "/work1/s103232/PassengerDelay/Disaggregate/Train/" + date + "/AVLSchedule_" + date + ".csv";
+							String fileName = "/work1/s103232/PassengerDelay/" + disaggregateName + "/Train/" + date + "/AVLSchedule_" + date + ".csv";
 							LinkedList<String> delays = gatherTrainDelays(fileName, scenario, date);
 							for(String s : delays){
 								trainWriter.append(s);
 							}
-							fileName = "/work1/s103232/PassengerDelay/Disaggregate/Bus/" + date + "/AVLSchedule_" + date + ".csv";
+							trainCount += delays.size();
+							fileName = "/work1/s103232/PassengerDelay/" + disaggregateName + "/Bus/" + date + "/AVLSchedule_" + date + ".csv";
 							delays = gatherBusDelays(fileName, scenario, date);
 							for(String s : delays){
 								busWriter.append(s);
 							}
+							busCount += delays.size();
 						}
 
 						System.out.print("Writing....");
@@ -162,6 +171,10 @@ public class createTablesOfVehicleDelays {
 						busWriter.flush();
 						busWriter.close();
 						System.out.println(" Done!");
+						System.out.println(trainCount + " used train delays");
+						System.out.println(busCount + " used bus delays");
+						
+						
 	}
 
 	private static void gatherPlannedTimesTrain(String fileName, Scenario scenario) {
